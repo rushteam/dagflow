@@ -60,7 +60,7 @@ td{padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#333}
 <body>
 <div class="layout">
 <nav class="sidebar">
-  <h1>Dash API <span>推荐系统任务调度平台</span></h1>
+  <h1>Dash API <span>DagFlow</span></h1>
   <div class="nav-group">
     <div class="nav-group-title">概览</div>
     <a class="nav-link" href="#auth">鉴权方式</a>
