@@ -9,6 +9,18 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/docs': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/leader': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 })
