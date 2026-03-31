@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/mlboy/dagflow/internal/application/scheduler"
-	"github.com/mlboy/dagflow/internal/infrastructure/auth"
-	"github.com/mlboy/dagflow/internal/infrastructure/database/gen"
-	infrahttp "github.com/mlboy/dagflow/internal/infrastructure/http"
+	"github.com/rushteam/dagflow/internal/application/scheduler"
+	"github.com/rushteam/dagflow/internal/infrastructure/auth"
+	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
+	infrahttp "github.com/rushteam/dagflow/internal/infrastructure/http"
 )
 
 type ScheduleHandler struct {

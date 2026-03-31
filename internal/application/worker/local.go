@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/mlboy/dagflow/internal/application/executor"
+	"github.com/rushteam/dagflow/internal/application/executor"
 )
 
 // LocalWorker 在当前进程内执行任务。

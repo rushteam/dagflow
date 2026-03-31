@@ -8,9 +8,9 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/mlboy/dagflow/internal/infrastructure/auth"
-	"github.com/mlboy/dagflow/internal/infrastructure/database/gen"
-	infrahttp "github.com/mlboy/dagflow/internal/infrastructure/http"
+	"github.com/rushteam/dagflow/internal/infrastructure/auth"
+	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
+	infrahttp "github.com/rushteam/dagflow/internal/infrastructure/http"
 
 	"github.com/go-chi/chi/v5"
 )

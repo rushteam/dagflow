@@ -13,16 +13,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mlboy/dagflow/internal/application/dag"
-	"github.com/mlboy/dagflow/internal/application/executor"
-	appscheduler "github.com/mlboy/dagflow/internal/application/scheduler"
-	"github.com/mlboy/dagflow/internal/application/worker"
-	"github.com/mlboy/dagflow/internal/infrastructure/auth"
-	infraconfig "github.com/mlboy/dagflow/internal/infrastructure/config"
-	infradatabase "github.com/mlboy/dagflow/internal/infrastructure/database"
-	"github.com/mlboy/dagflow/internal/infrastructure/election"
-	infrahttp "github.com/mlboy/dagflow/internal/infrastructure/http"
-	ihandler "github.com/mlboy/dagflow/internal/interface/http/handler"
+	"github.com/rushteam/dagflow/internal/application/dag"
+	"github.com/rushteam/dagflow/internal/application/executor"
+	appscheduler "github.com/rushteam/dagflow/internal/application/scheduler"
+	"github.com/rushteam/dagflow/internal/application/worker"
+	"github.com/rushteam/dagflow/internal/infrastructure/auth"
+	infraconfig "github.com/rushteam/dagflow/internal/infrastructure/config"
+	infradatabase "github.com/rushteam/dagflow/internal/infrastructure/database"
+	"github.com/rushteam/dagflow/internal/infrastructure/election"
+	infrahttp "github.com/rushteam/dagflow/internal/infrastructure/http"
+	ihandler "github.com/rushteam/dagflow/internal/interface/http/handler"
 )
 
 //go:embed frontend/dist/*

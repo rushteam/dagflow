@@ -9,8 +9,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/mlboy/dagflow/internal/application/executor"
-	"github.com/mlboy/dagflow/internal/infrastructure/database/gen"
+	"github.com/rushteam/dagflow/internal/application/executor"
+	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
 )
 
 // TaskRunner 由 scheduler 实现，dag 包通过此接口执行子任务。

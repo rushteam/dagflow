@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/mlboy/dagflow/internal/infrastructure/auth"
-	"github.com/mlboy/dagflow/internal/infrastructure/database/gen"
-	infrahttp "github.com/mlboy/dagflow/internal/infrastructure/http"
+	"github.com/rushteam/dagflow/internal/infrastructure/auth"
+	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
+	infrahttp "github.com/rushteam/dagflow/internal/infrastructure/http"
 
 	"github.com/go-chi/chi/v5"
 )

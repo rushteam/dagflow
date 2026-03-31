@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/mlboy/dagflow/internal/infrastructure/database/gen"
+	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
 )
 
 // ValidatePayload 校验 DAG payload：节点引用的 task 存在、无环、

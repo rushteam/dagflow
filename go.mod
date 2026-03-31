@@ -1,4 +1,4 @@
-module github.com/mlboy/dagflow
+module github.com/rushteam/dagflow
 
 go 1.25.0
 

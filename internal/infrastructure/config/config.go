@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/mlboy/dagflow/internal/infrastructure/election"
+	"github.com/rushteam/dagflow/internal/infrastructure/election"
 )
 
 type Config struct {

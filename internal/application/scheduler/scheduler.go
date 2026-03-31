@@ -12,11 +12,11 @@ import (
 
 	"github.com/robfig/cron/v3"
 
-	"github.com/mlboy/dagflow/internal/application/dag"
-	"github.com/mlboy/dagflow/internal/application/executor"
-	"github.com/mlboy/dagflow/internal/application/varfunc"
-	"github.com/mlboy/dagflow/internal/application/worker"
-	"github.com/mlboy/dagflow/internal/infrastructure/database/gen"
+	"github.com/rushteam/dagflow/internal/application/dag"
+	"github.com/rushteam/dagflow/internal/application/executor"
+	"github.com/rushteam/dagflow/internal/application/varfunc"
+	"github.com/rushteam/dagflow/internal/application/worker"
+	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
 )
 
 // Scheduler 负责调度编排：决定"何时跑、跑什么"，然后委派给 Worker 执行。
