@@ -2,12 +2,17 @@ package auth
 
 import (
 	"context"
+	cryptorand "crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
 )
 
 type contextKey string
@@ -17,12 +22,14 @@ const userIDKey contextKey = "user_id"
 type JWTManager struct {
 	secret     []byte
 	expiration time.Duration
+	queries    *gen.Queries
 }
 
-func NewJWTManager(secret string, expiration time.Duration) *JWTManager {
+func NewJWTManager(secret string, expiration time.Duration, db gen.DBTX) *JWTManager {
 	return &JWTManager{
 		secret:     []byte(secret),
 		expiration: expiration,
+		queries:    gen.New(db),
 	}
 }
 
@@ -61,7 +68,9 @@ func (m *JWTManager) ParseToken(tokenString string) (int64, error) {
 	return int64(userIDFloat), nil
 }
 
-// Middleware 验证 JWT token，通过则将 user_id 写入 context。
+// Middleware 验证请求身份，支持两种模式：
+//   - JWT: Authorization: Bearer <jwt>
+//   - API Token: Authorization: Bearer tk_<token>
 func (m *JWTManager) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		header := r.Header.Get("Authorization")
@@ -76,6 +85,19 @@ func (m *JWTManager) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// API Token: dsh_ 前缀
+		if strings.HasPrefix(tokenStr, "tk_") {
+			userID, err := m.verifyAPIToken(r.Context(), tokenStr)
+			if err != nil {
+				http.Error(w, `{"error":"invalid or expired api token"}`, http.StatusUnauthorized)
+				return
+			}
+			ctx := context.WithValue(r.Context(), userIDKey, userID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+
+		// JWT
 		userID, err := m.ParseToken(tokenStr)
 		if err != nil {
 			http.Error(w, `{"error":"invalid or expired token"}`, http.StatusUnauthorized)
@@ -87,7 +109,37 @@ func (m *JWTManager) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+func (m *JWTManager) verifyAPIToken(ctx context.Context, raw string) (int64, error) {
+	hash := HashToken(raw)
+	token, err := m.queries.GetAPITokenByHash(ctx, hash)
+	if err != nil {
+		return 0, fmt.Errorf("token not found")
+	}
+	if token.ExpiresAt.Valid && token.ExpiresAt.Time.Before(time.Now()) {
+		return 0, fmt.Errorf("token expired")
+	}
+	go func() {
+		_ = m.queries.TouchAPIToken(context.Background(), token.ID)
+	}()
+	return token.CreatedBy, nil
+}
+
+// HashToken 返回 API token 原文的 SHA-256 hex 摘要。
+func HashToken(raw string) string {
+	h := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(h[:])
+}
+
 func UserIDFromContext(ctx context.Context) (int64, bool) {
 	id, ok := ctx.Value(userIDKey).(int64)
 	return id, ok
+}
+
+// GenerateAPITokenRaw 生成一个随机 API token 原文。
+func GenerateAPITokenRaw() (string, error) {
+	b := make([]byte, 24)
+	if _, err := cryptorand.Read(b); err != nil {
+		return "", err
+	}
+	return "tk_" + hex.EncodeToString(b), nil
 }

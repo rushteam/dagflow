@@ -18,6 +18,12 @@ type Querier interface {
 	//    AND ($2::text IS NULL OR t.label ILIKE '%' || $2::text || '%')
 	//    AND ($3::bigint IS NULL OR tr.id = $3::bigint)
 	CountTaskRuns(ctx context.Context, arg CountTaskRunsParams) (int64, error)
+	//CreateAPIToken
+	//
+	//  INSERT INTO api_tokens (name, token_hash, prefix, created_by, expires_at)
+	//  VALUES ($1, $2, $3, $4, $5)
+	//  RETURNING id, name, token_hash, prefix, created_by, expires_at, last_used_at, enabled, created_at
+	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
 	//CreateSchedule
 	//
 	//  INSERT INTO schedules (name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, next_run_at, created_by)
@@ -72,6 +78,12 @@ type Querier interface {
 	//  SET finished_at = $2, status = $3, error_msg = $4, duration_ms = $5, output = $6
 	//  WHERE id = $1
 	FinishTaskRun(ctx context.Context, arg FinishTaskRunParams) error
+	//GetAPITokenByHash
+	//
+	//  SELECT id, name, token_hash, prefix, created_by, expires_at, last_used_at, enabled, created_at
+	//  FROM api_tokens
+	//  WHERE token_hash = $1 AND enabled = TRUE
+	GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiToken, error)
 	//GetEnabledSchedules
 	//
 	//  SELECT id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at FROM schedules WHERE enabled = true ORDER BY id
@@ -110,6 +122,21 @@ type Querier interface {
 	//
 	//  SELECT id, username, password_hash, nickname, role, created_at, updated_at, last_login_at FROM users WHERE username = $1
 	GetUserByUsername(ctx context.Context, username string) (User, error)
+	//ListAPITokensByUser
+	//
+	//  SELECT id, name, prefix, created_by, expires_at, last_used_at, enabled, created_at
+	//  FROM api_tokens
+	//  WHERE created_by = $1
+	//  ORDER BY created_at DESC
+	ListAPITokensByUser(ctx context.Context, createdBy int64) ([]ListAPITokensByUserRow, error)
+	//ListAllAPITokens
+	//
+	//  SELECT t.id, t.name, t.prefix, t.created_by, t.expires_at, t.last_used_at, t.enabled, t.created_at,
+	//         u.username AS creator_name
+	//  FROM api_tokens t
+	//  JOIN users u ON t.created_by = u.id
+	//  ORDER BY t.created_at DESC
+	ListAllAPITokens(ctx context.Context) ([]ListAllAPITokensRow, error)
 	//ListChildRuns
 	//
 	//  SELECT
@@ -165,10 +192,18 @@ type Querier interface {
 	//
 	//  SELECT id, username, password_hash, nickname, role, created_at, updated_at, last_login_at FROM users ORDER BY created_at DESC
 	ListUsers(ctx context.Context) ([]User, error)
+	//RevokeAPIToken
+	//
+	//  UPDATE api_tokens SET enabled = FALSE WHERE id = $1
+	RevokeAPIToken(ctx context.Context, id int64) error
 	//SetScheduleEnabled
 	//
 	//  UPDATE schedules SET enabled = $2, updated_at = NOW() WHERE id = $1
 	SetScheduleEnabled(ctx context.Context, arg SetScheduleEnabledParams) error
+	//TouchAPIToken
+	//
+	//  UPDATE api_tokens SET last_used_at = NOW() WHERE id = $1
+	TouchAPIToken(ctx context.Context, id int64) error
 	//UpdateSchedule
 	//
 	//  UPDATE schedules

@@ -10,6 +10,18 @@ import (
 	"time"
 )
 
+type ApiToken struct {
+	ID         int64        `json:"id"`
+	Name       string       `json:"name"`
+	TokenHash  string       `json:"token_hash"`
+	Prefix     string       `json:"prefix"`
+	CreatedBy  int64        `json:"created_by"`
+	ExpiresAt  sql.NullTime `json:"expires_at"`
+	LastUsedAt sql.NullTime `json:"last_used_at"`
+	Enabled    bool         `json:"enabled"`
+	CreatedAt  time.Time    `json:"created_at"`
+}
+
 type Schedule struct {
 	ID                int64           `json:"id"`
 	Name              string          `json:"name"`

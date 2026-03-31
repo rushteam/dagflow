@@ -54,7 +54,7 @@ func main() {
 	}
 	defer db.Close()
 
-	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.TokenExpiration)
+	jwtManager := auth.NewJWTManager(cfg.Auth.JWTSecret, cfg.Auth.TokenExpiration, db.DB)
 
 	// 执行器注册表 + DAG 执行器 + Worker + 调度引擎
 	kinds := executor.NewRegistry()
@@ -91,12 +91,15 @@ func main() {
 	userHandler := ihandler.NewUserHandler(db.DB, jwtManager)
 	taskHandler := ihandler.NewTaskHandler(db.DB, jwtManager, kinds, sched)
 	scheduleHandler := ihandler.NewScheduleHandler(db.DB, jwtManager, sched)
+	tokenHandler := ihandler.NewTokenHandler(db.DB, jwtManager)
 
 	r := infrahttp.NewRouter()
+	ihandler.RegisterDocsRoute(r)
 	authHandler.RegisterRoutes(r)
 	userHandler.RegisterRoutes(r)
 	taskHandler.RegisterRoutes(r)
 	scheduleHandler.RegisterRoutes(r)
+	tokenHandler.RegisterRoutes(r)
 
 	// /leader 端点：返回当前 Pod 是否为 Leader
 	r.Get("/leader", func(w http.ResponseWriter, _ *http.Request) {
