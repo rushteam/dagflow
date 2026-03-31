@@ -1,0 +1,426 @@
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.panelTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+}
+.refreshBtn, .createBtn {
+  padding: 6px 16px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+}
+.refreshBtn:hover:not(:disabled) { border-color: #1677ff; color: #1677ff; }
+.refreshBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+.createBtn {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+.createBtn:hover { background: #333; }
+
+/* Table */
+.tableWrap { overflow-x: auto; }
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #666;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #333;
+}
+.table tbody tr:hover { background: #fafafa; }
+.nameCell { font-weight: 500; }
+.code {
+  font-family: 'SF Mono', monospace;
+  font-size: 12px;
+  padding: 2px 6px;
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+.mono { font-family: 'SF Mono', monospace; font-size: 12px; }
+.typeBadge {
+  font-size: 11px;
+  padding: 2px 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.empty {
+  text-align: center;
+  padding: 40px 12px !important;
+  color: #999;
+}
+
+/* Status badges */
+.statusIdle {
+  font-size: 12px; padding: 2px 8px; border-radius: 4px;
+  background: #f0f0f0; color: #666;
+}
+.statusRunning {
+  font-size: 12px; padding: 2px 8px; border-radius: 4px;
+  background: #e6f4ff; color: #1677ff;
+}
+.statusCompleted {
+  font-size: 12px; padding: 2px 8px; border-radius: 4px;
+  background: #f6ffed; color: #52c41a;
+}
+.statusFailed {
+  font-size: 12px; padding: 2px 8px; border-radius: 4px;
+  background: #fff2f0; color: #cf1322;
+}
+
+/* Switch */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  padding: 2px;
+  border-radius: 10px;
+  border: none;
+  background: #d9d9d9;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 0;
+  vertical-align: middle;
+}
+.switch[data-checked] {
+  background: #1677ff;
+}
+.switchThumb {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.switchThumb[data-checked] {
+  transform: translateX(16px);
+}
+
+/* Action buttons */
+.actionCell {
+  display: flex;
+  gap: 4px;
+  white-space: nowrap;
+}
+.actionBtn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  color: #333;
+}
+.actionBtn:hover { border-color: #1677ff; color: #1677ff; }
+.actionBtnDanger {
+  composes: actionBtn;
+}
+.actionBtnDanger:hover { border-color: #cf1322; color: #cf1322; }
+
+/* Dialogs */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 100;
+}
+.formDialog {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 620px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  z-index: 101;
+}
+.logsDialog {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 680px;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  z-index: 101;
+}
+.dialogTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+.logsTableWrap {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+.errorCell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #cf1322;
+  font-size: 12px;
+}
+
+/* Select (Base UI) */
+.selectTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  color: #333;
+}
+.selectTrigger:focus {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22,119,255,0.1);
+}
+.selectTrigger[data-popup-open] {
+  border-color: #1677ff;
+}
+.selectIcon {
+  display: flex;
+  color: #999;
+}
+.selectPositioner {
+  z-index: 200;
+  outline: none;
+}
+.selectPopup {
+  min-width: var(--anchor-width);
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  border: 1px solid #e8e8e8;
+  padding: 4px 0;
+  overflow-y: auto;
+  max-height: 240px;
+}
+.selectItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+  color: #333;
+}
+.selectItem[data-highlighted] {
+  background: #f5f5f5;
+}
+.selectItem[data-selected] {
+  color: #1677ff;
+}
+.selectIndicator {
+  display: flex;
+  align-items: center;
+  margin-left: 12px;
+  color: #1677ff;
+  flex-shrink: 0;
+}
+
+/* Form */
+.form { display: flex; flex-direction: column; gap: 14px; }
+.formLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+.formInput, .formSelect, .formTextarea {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  outline: none;
+  font-family: inherit;
+}
+.formInput:focus, .formSelect:focus, .formTextarea:focus {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22,119,255,0.1);
+}
+.formTextarea {
+  resize: vertical;
+  font-family: 'SF Mono', monospace;
+  font-size: 13px;
+}
+.hint {
+  font-size: 12px;
+  color: #999;
+  font-weight: 400;
+}
+.formSwitchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+.formSwitchLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+.confirmDialog {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 380px;
+  padding: 24px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  z-index: 101;
+}
+.confirmDesc {
+  font-size: 14px;
+  color: #666;
+  margin: 0 0 20px;
+}
+.dangerBtn {
+  padding: 8px 20px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  background: #cf1322;
+  color: #fff;
+  cursor: pointer;
+}
+.dangerBtn:hover { background: #a8071a; }
+.formError {
+  padding: 8px 12px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+  color: #cf1322;
+  font-size: 13px;
+}
+.formActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.cancelBtn {
+  padding: 8px 20px;
+  font-size: 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+.submitBtn {
+  padding: 8px 20px;
+  font-size: 14px;
+  border: none;
+  border-radius: 6px;
+  background: #111;
+  color: #fff;
+  cursor: pointer;
+}
+.submitBtn:hover:not(:disabled) { background: #333; }
+.submitBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Variable overrides */
+.overridesSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.overridesTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+.overridesHint {
+  font-size: 11px;
+  color: #999;
+  margin-top: -4px;
+}
+.overrideRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  background: #fafafa;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
+}
+.overrideKey {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: #1677ff;
+  background: #e6f4ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.overrideSelect {
+  composes: selectTrigger;
+  width: auto;
+  min-width: 100px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.overrideInput {
+  composes: formInput;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.overrideInputShort {
+  composes: formInput;
+  width: 70px;
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 4px 8px;
+}

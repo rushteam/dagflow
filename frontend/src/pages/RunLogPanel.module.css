@@ -1,0 +1,334 @@
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.panelTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+.refreshBtn {
+  padding: 6px 16px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+}
+.refreshBtn:hover:not(:disabled) { border-color: #1677ff; color: #1677ff; }
+.refreshBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Filter bar */
+.filterBar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.filterInput {
+  padding: 6px 10px;
+  font-size: 13px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  outline: none;
+  width: 140px;
+}
+.filterInput:focus {
+  border-color: #1677ff;
+  box-shadow: 0 0 0 2px rgba(22,119,255,0.1);
+}
+.clearBtn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  color: #999;
+}
+.clearBtn:hover { border-color: #cf1322; color: #cf1322; }
+.filterCount {
+  font-size: 12px;
+  color: #999;
+  margin-left: auto;
+}
+
+/* Table */
+.tableWrap { overflow-x: auto; }
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #666;
+  background: #fafafa;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #333;
+}
+.table tbody tr:hover { background: #fafafa; }
+.nameCell { font-weight: 500; }
+.empty {
+  text-align: center;
+  padding: 40px 12px !important;
+  color: #999;
+}
+
+/* Status */
+.statusBadge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.statusSuccess {
+  background: #f6ffed;
+  color: #389e0d;
+}
+.statusFailed {
+  background: #fff2f0;
+  color: #cf1322;
+}
+.statusRunning {
+  background: #e6f4ff;
+  color: #1677ff;
+}
+.statusCancelled {
+  background: #fff7e6;
+  color: #d46b08;
+}
+
+.clickableRow {
+  cursor: pointer;
+}
+.clickableRow:hover {
+  background: #f0f5ff !important;
+}
+
+.actionCell {
+  display: flex;
+  gap: 4px;
+}
+
+.detailBtn {
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  color: #333;
+  white-space: nowrap;
+}
+.detailBtn:hover {
+  border-color: #1677ff;
+  color: #1677ff;
+}
+
+.cancelBtn {
+  padding: 2px 10px;
+  font-size: 12px;
+  border: 1px solid #d46b08;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  color: #d46b08;
+  white-space: nowrap;
+}
+.cancelBtn:hover {
+  background: #fff7e6;
+}
+
+.errorCell {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #cf1322;
+  font-size: 12px;
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 8px 0;
+}
+.pageBtn {
+  padding: 4px 10px;
+  font-size: 13px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  color: #333;
+  min-width: 32px;
+  text-align: center;
+}
+.pageBtn:hover:not(:disabled):not(.pageBtnActive) {
+  border-color: #1677ff;
+  color: #1677ff;
+}
+.pageBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.pageBtnActive {
+  background: #1677ff;
+  color: #fff;
+  border-color: #1677ff;
+}
+.pageEllipsis {
+  padding: 4px 6px;
+  font-size: 13px;
+  color: #999;
+}
+
+/* Detail Dialog */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: 100;
+}
+.detailDialog {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 720px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 24px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+  z-index: 101;
+}
+.detailTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 20px;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 24px;
+  margin-bottom: 16px;
+}
+.detailField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.detailLabel {
+  font-size: 12px;
+  color: #999;
+  font-weight: 500;
+}
+.detailValue {
+  font-size: 14px;
+  color: #333;
+}
+.kindBadge {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  padding: 1px 6px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  color: #666;
+}
+
+.detailOutputSection {
+  margin-bottom: 16px;
+}
+.detailOutputPre {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  background: #1a1a2e;
+  border: 1px solid #2d2d44;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #e0e0e0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.detailErrorSection {
+  margin-bottom: 16px;
+}
+.detailErrorPre {
+  margin: 6px 0 0;
+  padding: 10px 12px;
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  color: #cf1322;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.detailChildSection {
+  margin-bottom: 16px;
+}
+.detailSectionTitle {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+.detailChildLoading {
+  font-size: 13px;
+  color: #999;
+  padding: 12px 0;
+}
+.detailChildTableWrap {
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+
+.detailActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+.closeBtn {
+  padding: 8px 20px;
+  font-size: 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  color: #333;
+}
+.closeBtn:hover {
+  border-color: #1677ff;
+  color: #1677ff;
+}

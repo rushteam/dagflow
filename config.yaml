@@ -1,0 +1,27 @@
+server:
+  port: ":8080"
+  log_level: "info"
+
+database:
+  dsn: "postgres://dash:dash@localhost:5432/dash?sslmode=disable"
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 5m
+
+auth:
+  jwt_secret: "change-me-in-production"
+  token_expiration: 24h
+
+# Leader Election 配置（多 Pod 部署时防止调度重复执行）
+# driver: "pg" | "redis" | "kube" | "" (空=单实例模式)
+election:
+  driver: ""
+  pg:
+    lock_id: 8080
+  # redis:
+  #   addr: "localhost:6379"
+  #   key: "dash:leader"
+  #   ttl: 15s
+  # kube:
+  #   lease_name: "dash-leader"
+  #   lease_namespace: ""
