@@ -92,6 +92,7 @@ func main() {
 	taskHandler := ihandler.NewTaskHandler(db.DB, jwtManager, kinds, sched)
 	scheduleHandler := ihandler.NewScheduleHandler(db.DB, jwtManager, sched)
 	tokenHandler := ihandler.NewTokenHandler(db.DB, jwtManager)
+	callbackHandler := ihandler.NewCallbackHandler(db.DB, jwtManager)
 
 	r := infrahttp.NewRouter()
 	ihandler.RegisterDocsRoute(r)
@@ -100,6 +101,7 @@ func main() {
 	taskHandler.RegisterRoutes(r)
 	scheduleHandler.RegisterRoutes(r)
 	tokenHandler.RegisterRoutes(r)
+	callbackHandler.RegisterRoutes(r)
 
 	// /leader 端点：返回当前 Pod 是否为 Leader
 	r.Get("/leader", func(w http.ResponseWriter, _ *http.Request) {

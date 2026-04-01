@@ -195,6 +195,7 @@ func (h *TaskHandler) createTask(w http.ResponseWriter, r *http.Request) {
 		Variables: variables,
 		Enabled:   req.Enabled,
 		CreatedBy: createdBy,
+		Callback:  json.RawMessage(`null`),
 	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "创建任务失败", "error", err)
@@ -250,6 +251,7 @@ func (h *TaskHandler) updateTask(w http.ResponseWriter, r *http.Request) {
 		Payload:   payload,
 		Variables: variables,
 		Enabled:   req.Enabled,
+		Callback:  json.RawMessage(`null`),
 	})
 	if err != nil {
 		if err == sql.ErrNoRows {

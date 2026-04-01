@@ -4,12 +4,14 @@ import { Dialog } from '@base-ui/react/dialog'
 import { api, type User } from '../api/client'
 import TaskPanel from './TaskPanel'
 import SchedulePanel from './SchedulePanel'
+import CallbackPanel from './CallbackPanel'
 import RunLogPanel from './RunLogPanel'
 import styles from './Dashboard.module.css'
 
 const NAV_ITEMS = [
   { key: 'tasks', path: '/tasks', label: '任务管理' },
   { key: 'schedules', path: '/schedules', label: '调度管理' },
+  { key: 'callbacks', path: '/callbacks', label: '回调管理' },
   { key: 'runlog', path: '/runlog', label: '运行日志' },
   { key: 'users', path: '/users', label: '用户管理' },
   { key: 'overview', path: '/overview', label: '系统概览' },
@@ -99,6 +101,7 @@ export default function Dashboard({ user, onLogout }: Props) {
           <div className={styles.content}>
             {activeKey === 'tasks' && <TaskPanel onNavigateToRunLog={navigateToRunLog} />}
             {activeKey === 'schedules' && <SchedulePanel />}
+            {activeKey === 'callbacks' && <CallbackPanel />}
             {activeKey === 'runlog' && <RunLogPanel />}
             {activeKey === 'users' && <UsersPanel users={users} loading={loadingUsers} onRefresh={fetchUsers} />}
             {activeKey === 'overview' && <OverviewPanel users={users} />}

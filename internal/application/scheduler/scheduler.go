@@ -12,6 +12,7 @@ import (
 
 	"github.com/robfig/cron/v3"
 
+	"github.com/rushteam/dagflow/internal/application/callback"
 	"github.com/rushteam/dagflow/internal/application/dag"
 	"github.com/rushteam/dagflow/internal/application/executor"
 	"github.com/rushteam/dagflow/internal/application/varfunc"
@@ -333,6 +334,7 @@ func (s *Scheduler) dispatch(ctx context.Context, taskID int64, triggerType stri
 	})
 
 	// ⑦ 持久化运行结果
+	finishedAt := time.Now()
 	if run.ID > 0 {
 		var errMsg sql.NullString
 		if result.Error != "" {
@@ -344,11 +346,25 @@ func (s *Scheduler) dispatch(ctx context.Context, taskID int64, triggerType stri
 		}
 		_ = s.queries.FinishTaskRun(ctx, gen.FinishTaskRunParams{
 			ID:         run.ID,
-			FinishedAt: sql.NullTime{Time: time.Now(), Valid: true},
+			FinishedAt: sql.NullTime{Time: finishedAt, Valid: true},
 			Status:     result.Status,
 			ErrorMsg:   errMsg,
 			DurationMs: sql.NullInt64{Int64: result.DurationMs, Valid: true},
 			Output:     output,
+		})
+	}
+
+	// ⑧ 触发全局回调（异步，失败忽略）
+	if cbs, err := s.queries.ListEnabledCallbacks(context.Background()); err == nil && len(cbs) > 0 {
+		callback.FireMatched(cbs, taskID, callback.Payload{
+			RunID:      run.ID,
+			TaskID:     taskID,
+			TaskName:   task.Name,
+			Status:     result.Status,
+			DurationMs: result.DurationMs,
+			Error:      result.Error,
+			Output:     result.Output,
+			FinishedAt: finishedAt.Format(time.RFC3339),
 		})
 	}
 

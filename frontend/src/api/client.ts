@@ -159,6 +159,30 @@ class ApiClient {
   getScheduleLogs(id: number): Promise<ScheduleLog[]> {
     return this.request(`/api/v1/schedules/${id}/logs`)
   }
+
+  // ---- callbacks ----
+
+  listCallbacks(): Promise<Callback[]> {
+    return this.request('/api/v1/callbacks')
+  }
+
+  createCallback(data: CallbackInput): Promise<Callback> {
+    return this.request('/api/v1/callbacks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  updateCallback(id: number, data: CallbackInput): Promise<Callback> {
+    return this.request(`/api/v1/callbacks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  deleteCallback(id: number): Promise<void> {
+    return this.request(`/api/v1/callbacks/${id}`, { method: 'DELETE' })
+  }
 }
 
 export interface KindInfo {
@@ -267,6 +291,32 @@ export interface ScheduleLog {
   status: string
   error_msg?: string
   duration_ms?: number
+}
+
+// ---- Callbacks ----
+
+export interface Callback {
+  id: number
+  name: string
+  url: string
+  events: string[]
+  headers: Record<string, string>
+  match_mode: 'all' | 'selected'
+  task_ids: number[]
+  enabled: boolean
+  created_by?: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CallbackInput {
+  name: string
+  url: string
+  events: string[]
+  headers: Record<string, string>
+  match_mode: 'all' | 'selected'
+  task_ids: number[]
+  enabled: boolean
 }
 
 export const api = new ApiClient()
