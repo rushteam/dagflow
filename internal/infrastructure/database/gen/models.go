@@ -22,6 +22,20 @@ type ApiToken struct {
 	CreatedAt  time.Time    `json:"created_at"`
 }
 
+type Callback struct {
+	ID        int64           `json:"id"`
+	Name      string          `json:"name"`
+	Url       string          `json:"url"`
+	Events    json.RawMessage `json:"events"`
+	Headers   json.RawMessage `json:"headers"`
+	MatchMode string          `json:"match_mode"`
+	TaskIds   json.RawMessage `json:"task_ids"`
+	Enabled   bool            `json:"enabled"`
+	CreatedBy sql.NullInt64   `json:"created_by"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
 type Schedule struct {
 	ID                int64           `json:"id"`
 	Name              string          `json:"name"`
@@ -61,6 +75,7 @@ type Task struct {
 	CreatedBy sql.NullInt64   `json:"created_by"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
+	Callback  json.RawMessage `json:"callback"`
 }
 
 type TaskRun struct {

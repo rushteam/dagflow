@@ -24,6 +24,12 @@ type Querier interface {
 	//  VALUES ($1, $2, $3, $4, $5)
 	//  RETURNING id, name, token_hash, prefix, created_by, expires_at, last_used_at, enabled, created_at
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
+	//CreateCallback
+	//
+	//  INSERT INTO callbacks (name, url, events, headers, match_mode, task_ids, enabled, created_by)
+	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	//  RETURNING id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at
+	CreateCallback(ctx context.Context, arg CreateCallbackParams) (Callback, error)
 	//CreateSchedule
 	//
 	//  INSERT INTO schedules (name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, next_run_at, created_by)
@@ -38,9 +44,9 @@ type Querier interface {
 	CreateScheduleLog(ctx context.Context, arg CreateScheduleLogParams) (ScheduleLog, error)
 	//CreateTask
 	//
-	//  INSERT INTO tasks (name, label, kind, payload, variables, enabled, created_by)
-	//  VALUES ($1, $2, $3, $4, $5, $6, $7)
-	//  RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at
+	//  INSERT INTO tasks (name, label, kind, payload, variables, enabled, created_by, callback)
+	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	//  RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	//CreateTaskRun
 	//
@@ -54,6 +60,10 @@ type Querier interface {
 	//  VALUES ($1, $2, $3)
 	//  RETURNING id, username, password_hash, nickname, role, created_at, updated_at, last_login_at
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	//DeleteCallback
+	//
+	//  DELETE FROM callbacks WHERE id = $1
+	DeleteCallback(ctx context.Context, id int64) error
 	//DeleteSchedule
 	//
 	//  DELETE FROM schedules WHERE id = $1
@@ -84,6 +94,10 @@ type Querier interface {
 	//  FROM api_tokens
 	//  WHERE token_hash = $1 AND enabled = TRUE
 	GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiToken, error)
+	//GetCallbackByID
+	//
+	//  SELECT id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks WHERE id = $1
+	GetCallbackByID(ctx context.Context, id int64) (Callback, error)
 	//GetEnabledSchedules
 	//
 	//  SELECT id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at FROM schedules WHERE enabled = true ORDER BY id
@@ -94,11 +108,11 @@ type Querier interface {
 	GetScheduleByID(ctx context.Context, id int64) (Schedule, error)
 	//GetTaskByID
 	//
-	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at FROM tasks WHERE id = $1
+	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE id = $1
 	GetTaskByID(ctx context.Context, id int64) (Task, error)
 	//GetTaskByName
 	//
-	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at FROM tasks WHERE name = $1
+	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE name = $1
 	GetTaskByName(ctx context.Context, name string) (Task, error)
 	//GetTaskRunByID
 	//
@@ -137,6 +151,10 @@ type Querier interface {
 	//  JOIN users u ON t.created_by = u.id
 	//  ORDER BY t.created_at DESC
 	ListAllAPITokens(ctx context.Context) ([]ListAllAPITokensRow, error)
+	//ListCallbacks
+	//
+	//  SELECT id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks ORDER BY created_at DESC
+	ListCallbacks(ctx context.Context) ([]Callback, error)
 	//ListChildRuns
 	//
 	//  SELECT
@@ -148,9 +166,13 @@ type Querier interface {
 	//  WHERE tr.parent_run_id = $1
 	//  ORDER BY tr.started_at ASC
 	ListChildRuns(ctx context.Context, parentRunID sql.NullInt64) ([]ListChildRunsRow, error)
+	//ListEnabledCallbacks
+	//
+	//  SELECT id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks WHERE enabled = TRUE ORDER BY id
+	ListEnabledCallbacks(ctx context.Context) ([]Callback, error)
 	//ListEnabledTasks
 	//
-	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at FROM tasks WHERE enabled = true ORDER BY name
+	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE enabled = true ORDER BY name
 	ListEnabledTasks(ctx context.Context) ([]Task, error)
 	//ListScheduleLogs
 	//
@@ -186,7 +208,7 @@ type Querier interface {
 	ListTaskRunsPaged(ctx context.Context, arg ListTaskRunsPagedParams) ([]ListTaskRunsPagedRow, error)
 	//ListTasks
 	//
-	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at FROM tasks ORDER BY created_at DESC
+	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks ORDER BY created_at DESC
 	ListTasks(ctx context.Context) ([]Task, error)
 	//ListUsers
 	//
@@ -204,6 +226,13 @@ type Querier interface {
 	//
 	//  UPDATE api_tokens SET last_used_at = NOW() WHERE id = $1
 	TouchAPIToken(ctx context.Context, id int64) error
+	//UpdateCallback
+	//
+	//  UPDATE callbacks
+	//  SET name = $2, url = $3, events = $4, headers = $5, match_mode = $6, task_ids = $7, enabled = $8, updated_at = NOW()
+	//  WHERE id = $1
+	//  RETURNING id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at
+	UpdateCallback(ctx context.Context, arg UpdateCallbackParams) (Callback, error)
 	//UpdateSchedule
 	//
 	//  UPDATE schedules
@@ -221,9 +250,9 @@ type Querier interface {
 	//UpdateTask
 	//
 	//  UPDATE tasks
-	//  SET name = $2, label = $3, kind = $4, payload = $5, variables = $6, enabled = $7, updated_at = NOW()
+	//  SET name = $2, label = $3, kind = $4, payload = $5, variables = $6, enabled = $7, callback = $8, updated_at = NOW()
 	//  WHERE id = $1
-	//  RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at
+	//  RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 	//UpdateUserLastLogin
 	//

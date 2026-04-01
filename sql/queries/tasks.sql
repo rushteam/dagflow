@@ -1,6 +1,6 @@
 -- name: CreateTask :one
-INSERT INTO tasks (name, label, kind, payload, variables, enabled, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO tasks (name, label, kind, payload, variables, enabled, created_by, callback)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetTaskByID :one
@@ -17,7 +17,7 @@ SELECT * FROM tasks WHERE enabled = true ORDER BY name;
 
 -- name: UpdateTask :one
 UPDATE tasks
-SET name = $2, label = $3, kind = $4, payload = $5, variables = $6, enabled = $7, updated_at = NOW()
+SET name = $2, label = $3, kind = $4, payload = $5, variables = $6, enabled = $7, callback = $8, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 
