@@ -3,17 +3,23 @@ import { Dialog } from '@base-ui/react/dialog'
 import { Input } from '@base-ui/react/input'
 import { Select } from '@base-ui/react/select'
 import { Switch } from '@base-ui/react/switch'
-import { api, type Task, type Schedule, type ScheduleInput, type ScheduleLog, type VarOverride } from '../api/client'
+import { api, type Task, type Schedule, type ScheduleInput, type TaskRun, type VarOverride } from '../api/client'
+import { RunRow } from './TaskPanel'
+import taskStyles from './TaskPanel.module.css'
 import styles from './SchedulePanel.module.css'
 
-export default function SchedulePanel() {
+interface SchedulePanelProps {
+  onNavigateToRunLog?: () => void
+}
+
+export default function SchedulePanel({ onNavigateToRunLog }: SchedulePanelProps) {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Schedule | null>(null)
-  const [logsFor, setLogsFor] = useState<Schedule | null>(null)
-  const [logs, setLogs] = useState<ScheduleLog[]>([])
+  const [runsForSchedule, setRunsForSchedule] = useState<Schedule | null>(null)
+  const [triggeringId, setTriggeringId] = useState<number | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Schedule | null>(null)
 
   const taskMap = useMemo(() => {
@@ -50,10 +56,16 @@ export default function SchedulePanel() {
   }
 
   const handleTrigger = async (id: number) => {
+    if (triggeringId === id) return
+    setTriggeringId(id)
     try {
-      await api.triggerSchedule(id)
-      setTimeout(fetchData, 1000)
+      const minWait = new Promise<void>(r => setTimeout(r, 500))
+      await Promise.all([api.triggerSchedule(id), minWait])
+      fetchData()
     } catch { /* ignore */ }
+    finally {
+      setTriggeringId(null)
+    }
   }
 
   const confirmDelete = async () => {
@@ -65,12 +77,8 @@ export default function SchedulePanel() {
     finally { setDeleteTarget(null) }
   }
 
-  const handleShowLogs = async (sch: Schedule) => {
-    setLogsFor(sch)
-    try {
-      const l = await api.getScheduleLogs(sch.id)
-      setLogs(l)
-    } catch { setLogs([]) }
+  const openRunsDialog = (sch: Schedule) => {
+    setRunsForSchedule(sch)
   }
 
   const openCreate = () => { setEditing(null); setShowForm(true) }
@@ -130,10 +138,11 @@ export default function SchedulePanel() {
                 <td>{sch.last_run_at ? formatTime(sch.last_run_at) : '-'}</td>
                 <td>{sch.next_run_at ? formatTime(sch.next_run_at) : '-'}</td>
                 <td className={styles.actionCell}>
-                  <button className={styles.actionBtn} onClick={() => handleTrigger(sch.id)} title="立即执行">
-                    执行
+                  <button className={styles.actionBtnPrimary} disabled={triggeringId === sch.id}
+                    onClick={() => handleTrigger(sch.id)} title="按调度配置立即执行一次">
+                    {triggeringId === sch.id ? '触发中...' : '执行'}
                   </button>
-                  <button className={styles.actionBtn} onClick={() => handleShowLogs(sch)} title="查看日志">
+                  <button className={styles.actionBtn} onClick={() => openRunsDialog(sch)} title="本调度触发的任务运行记录">
                     日志
                   </button>
                   <button className={styles.actionBtn} onClick={() => openEdit(sch)} title="编辑">
@@ -161,11 +170,12 @@ export default function SchedulePanel() {
         />
       )}
 
-      {logsFor && (
-        <LogsDialog
-          schedule={logsFor}
-          logs={logs}
-          onClose={() => setLogsFor(null)}
+      {runsForSchedule && (
+        <ScheduleRunsDialog
+          schedule={runsForSchedule}
+          task={taskMap.get(runsForSchedule.task_id)}
+          onClose={() => setRunsForSchedule(null)}
+          onNavigateToRunLog={onNavigateToRunLog}
         />
       )}
 
@@ -442,50 +452,122 @@ function VarOverridesEditor({ taskVars, overrides, onChange }: {
   )
 }
 
-// ---- Logs Dialog ----
+// ---- 与任务管理一致：展示 task_runs 中由本调度触发的记录 ----
 
-function LogsDialog({ schedule, logs, onClose }: {
+function ScheduleRunsDialog({ schedule, task, onClose, onNavigateToRunLog }: {
   schedule: Schedule
-  logs: ScheduleLog[]
+  task: Task | undefined
   onClose: () => void
+  onNavigateToRunLog?: () => void
 }) {
+  const [filteredRuns, setFilteredRuns] = useState<TaskRun[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchRuns = useCallback(async () => {
+    if (!task) {
+      setFilteredRuns([])
+      setLoading(false)
+      return
+    }
+    setLoading(true)
+    try {
+      const all = await api.listTaskRuns(task.id)
+      const sid = schedule.id
+      setFilteredRuns(all.filter(r =>
+        r.trigger_type === 'schedule' && r.trigger_id === sid
+      ))
+    } catch {
+      setFilteredRuns([])
+    } finally {
+      setLoading(false)
+    }
+  }, [task, schedule.id])
+
+  useEffect(() => { fetchRuns() }, [fetchRuns])
+
+  const runs = filteredRuns.slice(0, 10)
+  const hasMore = filteredRuns.length > 10
+
+  const statusBadge = (s: string) => {
+    const cls = s === 'success' ? taskStyles.statusSuccess
+      : s === 'failed' ? taskStyles.statusFailed
+      : s === 'cancelled' ? taskStyles.statusCancelled
+      : taskStyles.statusRunning
+    return <span className={`${taskStyles.statusBadge} ${cls}`}>{s}</span>
+  }
+
+  const triggerLabel = (_r: TaskRun) => `调度 #${schedule.id}`
+
+  const handleCancel = async (runId: number) => {
+    try {
+      await api.cancelTaskRun(runId)
+      setTimeout(fetchRuns, 500)
+    } catch { /* ignore */ }
+  }
+
+  const handleViewMore = () => {
+    onClose()
+    onNavigateToRunLog?.()
+  }
+
+  const isDag = task?.kind === 'dag'
+
   return (
     <Dialog.Root open onOpenChange={(open) => { if (!open) onClose() }}>
       <Dialog.Portal>
-        <Dialog.Backdrop className={styles.backdrop} />
-        <Dialog.Popup className={styles.logsDialog}>
-          <Dialog.Title className={styles.dialogTitle}>
-            执行日志 - {schedule.name}
+        <Dialog.Backdrop className={taskStyles.backdrop} />
+        <Dialog.Popup className={taskStyles.runsDialog}>
+          <Dialog.Title className={taskStyles.dialogTitle}>
+            运行日志 — {schedule.name}
+            {task ? `（${task.label || task.name}）` : ''}
           </Dialog.Title>
 
-          <div className={styles.logsTableWrap}>
-            <table className={styles.table}>
+          {!task && (
+            <div className={styles.formError}>关联任务不存在或已删除</div>
+          )}
+
+          <div className={taskStyles.runsToolbar}>
+            <span className={taskStyles.runsCount}>
+              本调度触发 · 最近 {runs.length} 条{hasMore ? `（共 ${filteredRuns.length} 条）` : ''}
+            </span>
+            <button type="button" className={taskStyles.refreshBtn} onClick={fetchRuns} disabled={loading || !task}>
+              {loading ? '刷新中...' : '刷新'}
+            </button>
+          </div>
+
+          <div className={taskStyles.tableWrap}>
+            <table className={taskStyles.table}>
               <thead>
                 <tr>
-                  <th>开始时间</th>
+                  <th>ID</th>
+                  <th>触发方式</th>
                   <th>状态</th>
+                  <th>开始时间</th>
                   <th>耗时</th>
                   <th>错误信息</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.map(l => (
-                  <tr key={l.id}>
-                    <td>{formatTime(l.started_at)}</td>
-                    <td><StatusBadge status={l.status} /></td>
-                    <td>{l.duration_ms != null ? `${l.duration_ms}ms` : '-'}</td>
-                    <td className={styles.errorCell}>{l.error_msg || '-'}</td>
-                  </tr>
+                {runs.map(r => (
+                  <RunRow key={r.id} run={r} isDag={isDag}
+                    statusBadge={statusBadge} triggerLabel={triggerLabel}
+                    onCancel={handleCancel} />
                 ))}
-                {logs.length === 0 && (
-                  <tr><td colSpan={4} className={styles.empty}>暂无执行记录</td></tr>
+                {runs.length === 0 && !loading && (
+                  <tr><td colSpan={7} className={taskStyles.empty}>暂无运行记录</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          <div className={styles.formActions}>
-            <Dialog.Close className={styles.cancelBtn}>关闭</Dialog.Close>
+          <div className={taskStyles.formActions}>
+            {hasMore && onNavigateToRunLog && (
+              <button type="button" className={taskStyles.viewMoreBtn} onClick={handleViewMore}>
+                查看更多 →
+              </button>
+            )}
+            <Dialog.Close className={taskStyles.cancelBtn}>关闭</Dialog.Close>
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

@@ -141,6 +141,14 @@
   color: #333;
 }
 .actionBtn:hover { border-color: #1677ff; color: #1677ff; }
+.actionBtnPrimary {
+  composes: actionBtn;
+  background: #1677ff;
+  color: #fff;
+  border-color: #1677ff;
+}
+.actionBtnPrimary:hover:not(:disabled) { background: #4096ff; border-color: #4096ff; }
+.actionBtnPrimary:disabled { opacity: 0.6; cursor: not-allowed; }
 .actionBtnDanger {
   composes: actionBtn;
 }
@@ -166,28 +174,10 @@
   box-shadow: 0 8px 32px rgba(0,0,0,0.12);
   z-index: 101;
 }
-.logsDialog {
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 680px;
-  max-height: 80vh;
-  overflow-y: auto;
-  padding: 24px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-  z-index: 101;
-}
 .dialogTitle {
   font-size: 16px;
   font-weight: 600;
   margin: 0 0 16px;
-}
-.logsTableWrap {
-  max-height: 400px;
-  overflow-y: auto;
-  margin-bottom: 16px;
 }
 .errorCell {
   max-width: 200px;

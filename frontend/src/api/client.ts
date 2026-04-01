@@ -156,10 +156,6 @@ class ApiClient {
     return this.request(`/api/v1/schedules/${id}/trigger`, { method: 'POST' })
   }
 
-  getScheduleLogs(id: number): Promise<ScheduleLog[]> {
-    return this.request(`/api/v1/schedules/${id}/logs`)
-  }
-
   // ---- callbacks ----
 
   listCallbacks(): Promise<Callback[]> {
@@ -282,16 +278,6 @@ export interface PagedTaskRuns {
   page: number
   size: number
   items: AllTaskRun[]
-}
-
-export interface ScheduleLog {
-  id: number
-  schedule_id: number
-  started_at: string
-  finished_at?: string
-  status: string
-  error_msg?: string
-  duration_ms?: number
 }
 
 // ---- Callbacks ----

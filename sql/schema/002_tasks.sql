@@ -5,13 +5,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     kind        VARCHAR(64)  NOT NULL,
     payload     JSONB        NOT NULL DEFAULT '{}',
     variables   JSONB        NOT NULL DEFAULT '[]',
+    callback    JSONB        NOT NULL DEFAULT 'null',
     enabled     BOOLEAN      NOT NULL DEFAULT true,
     created_by  BIGINT       REFERENCES users(id),
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
-
-ALTER TABLE tasks ADD COLUMN IF NOT EXISTS variables JSONB NOT NULL DEFAULT '[]';
-ALTER TABLE tasks ADD COLUMN IF NOT EXISTS callback JSONB NOT NULL DEFAULT 'null';
 
 CREATE INDEX IF NOT EXISTS idx_tasks_kind ON tasks (kind);

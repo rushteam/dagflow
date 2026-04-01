@@ -36,17 +36,11 @@ type Querier interface {
 	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	//  RETURNING id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at
 	CreateSchedule(ctx context.Context, arg CreateScheduleParams) (Schedule, error)
-	//CreateScheduleLog
-	//
-	//  INSERT INTO schedule_logs (schedule_id, started_at, status)
-	//  VALUES ($1, $2, $3)
-	//  RETURNING id, schedule_id, started_at, finished_at, status, error_msg, duration_ms, created_at
-	CreateScheduleLog(ctx context.Context, arg CreateScheduleLogParams) (ScheduleLog, error)
 	//CreateTask
 	//
 	//  INSERT INTO tasks (name, label, kind, payload, variables, enabled, created_by, callback)
 	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	//  RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback
+	//  RETURNING id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at
 	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	//CreateTaskRun
 	//
@@ -76,12 +70,6 @@ type Querier interface {
 	//
 	//  DELETE FROM users WHERE id = $1
 	DeleteUser(ctx context.Context, id int64) error
-	//FinishScheduleLog
-	//
-	//  UPDATE schedule_logs
-	//  SET finished_at = $2, status = $3, error_msg = $4, duration_ms = $5
-	//  WHERE id = $1
-	FinishScheduleLog(ctx context.Context, arg FinishScheduleLogParams) error
 	//FinishTaskRun
 	//
 	//  UPDATE task_runs
@@ -108,11 +96,11 @@ type Querier interface {
 	GetScheduleByID(ctx context.Context, id int64) (Schedule, error)
 	//GetTaskByID
 	//
-	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE id = $1
+	//  SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE id = $1
 	GetTaskByID(ctx context.Context, id int64) (Task, error)
 	//GetTaskByName
 	//
-	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE name = $1
+	//  SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE name = $1
 	GetTaskByName(ctx context.Context, name string) (Task, error)
 	//GetTaskRunByID
 	//
@@ -172,15 +160,8 @@ type Querier interface {
 	ListEnabledCallbacks(ctx context.Context) ([]Callback, error)
 	//ListEnabledTasks
 	//
-	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE enabled = true ORDER BY name
+	//  SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE enabled = true ORDER BY name
 	ListEnabledTasks(ctx context.Context) ([]Task, error)
-	//ListScheduleLogs
-	//
-	//  SELECT id, schedule_id, started_at, finished_at, status, error_msg, duration_ms, created_at FROM schedule_logs
-	//  WHERE schedule_id = $1
-	//  ORDER BY created_at DESC
-	//  LIMIT 50
-	ListScheduleLogs(ctx context.Context, scheduleID int64) ([]ScheduleLog, error)
 	//ListSchedules
 	//
 	//  SELECT id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at FROM schedules ORDER BY created_at DESC
@@ -208,7 +189,7 @@ type Querier interface {
 	ListTaskRunsPaged(ctx context.Context, arg ListTaskRunsPagedParams) ([]ListTaskRunsPagedRow, error)
 	//ListTasks
 	//
-	//  SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks ORDER BY created_at DESC
+	//  SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks ORDER BY created_at DESC
 	ListTasks(ctx context.Context) ([]Task, error)
 	//ListUsers
 	//
@@ -252,7 +233,7 @@ type Querier interface {
 	//  UPDATE tasks
 	//  SET name = $2, label = $3, kind = $4, payload = $5, variables = $6, enabled = $7, callback = $8, updated_at = NOW()
 	//  WHERE id = $1
-	//  RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback
+	//  RETURNING id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at
 	UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error)
 	//UpdateUserLastLogin
 	//

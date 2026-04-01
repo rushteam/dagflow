@@ -14,7 +14,7 @@ import (
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (name, label, kind, payload, variables, enabled, created_by, callback)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback
+RETURNING id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at
 `
 
 type CreateTaskParams struct {
@@ -32,7 +32,7 @@ type CreateTaskParams struct {
 //
 //	INSERT INTO tasks (name, label, kind, payload, variables, enabled, created_by, callback)
 //	VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-//	RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback
+//	RETURNING id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
 	row := q.db.QueryRowContext(ctx, createTask,
 		arg.Name,
@@ -52,11 +52,11 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.Kind,
 		&i.Payload,
 		&i.Variables,
+		&i.Callback,
 		&i.Enabled,
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Callback,
 	)
 	return i, err
 }
@@ -74,12 +74,12 @@ func (q *Queries) DeleteTask(ctx context.Context, id int64) error {
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE id = $1
+SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE id = $1
 `
 
 // GetTaskByID
 //
-//	SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE id = $1
+//	SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE id = $1
 func (q *Queries) GetTaskByID(ctx context.Context, id int64) (Task, error) {
 	row := q.db.QueryRowContext(ctx, getTaskByID, id)
 	var i Task
@@ -90,22 +90,22 @@ func (q *Queries) GetTaskByID(ctx context.Context, id int64) (Task, error) {
 		&i.Kind,
 		&i.Payload,
 		&i.Variables,
+		&i.Callback,
 		&i.Enabled,
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Callback,
 	)
 	return i, err
 }
 
 const getTaskByName = `-- name: GetTaskByName :one
-SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE name = $1
+SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE name = $1
 `
 
 // GetTaskByName
 //
-//	SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE name = $1
+//	SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE name = $1
 func (q *Queries) GetTaskByName(ctx context.Context, name string) (Task, error) {
 	row := q.db.QueryRowContext(ctx, getTaskByName, name)
 	var i Task
@@ -116,22 +116,22 @@ func (q *Queries) GetTaskByName(ctx context.Context, name string) (Task, error) 
 		&i.Kind,
 		&i.Payload,
 		&i.Variables,
+		&i.Callback,
 		&i.Enabled,
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Callback,
 	)
 	return i, err
 }
 
 const listEnabledTasks = `-- name: ListEnabledTasks :many
-SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE enabled = true ORDER BY name
+SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE enabled = true ORDER BY name
 `
 
 // ListEnabledTasks
 //
-//	SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks WHERE enabled = true ORDER BY name
+//	SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks WHERE enabled = true ORDER BY name
 func (q *Queries) ListEnabledTasks(ctx context.Context) ([]Task, error) {
 	rows, err := q.db.QueryContext(ctx, listEnabledTasks)
 	if err != nil {
@@ -148,11 +148,11 @@ func (q *Queries) ListEnabledTasks(ctx context.Context) ([]Task, error) {
 			&i.Kind,
 			&i.Payload,
 			&i.Variables,
+			&i.Callback,
 			&i.Enabled,
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Callback,
 		); err != nil {
 			return nil, err
 		}
@@ -168,12 +168,12 @@ func (q *Queries) ListEnabledTasks(ctx context.Context) ([]Task, error) {
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks ORDER BY created_at DESC
+SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks ORDER BY created_at DESC
 `
 
 // ListTasks
 //
-//	SELECT id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback FROM tasks ORDER BY created_at DESC
+//	SELECT id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at FROM tasks ORDER BY created_at DESC
 func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 	rows, err := q.db.QueryContext(ctx, listTasks)
 	if err != nil {
@@ -190,11 +190,11 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Task, error) {
 			&i.Kind,
 			&i.Payload,
 			&i.Variables,
+			&i.Callback,
 			&i.Enabled,
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Callback,
 		); err != nil {
 			return nil, err
 		}
@@ -213,7 +213,7 @@ const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
 SET name = $2, label = $3, kind = $4, payload = $5, variables = $6, enabled = $7, callback = $8, updated_at = NOW()
 WHERE id = $1
-RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback
+RETURNING id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at
 `
 
 type UpdateTaskParams struct {
@@ -232,7 +232,7 @@ type UpdateTaskParams struct {
 //	UPDATE tasks
 //	SET name = $2, label = $3, kind = $4, payload = $5, variables = $6, enabled = $7, callback = $8, updated_at = NOW()
 //	WHERE id = $1
-//	RETURNING id, name, label, kind, payload, variables, enabled, created_by, created_at, updated_at, callback
+//	RETURNING id, name, label, kind, payload, variables, callback, enabled, created_by, created_at, updated_at
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
 	row := q.db.QueryRowContext(ctx, updateTask,
 		arg.ID,
@@ -252,11 +252,11 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.Kind,
 		&i.Payload,
 		&i.Variables,
+		&i.Callback,
 		&i.Enabled,
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Callback,
 	)
 	return i, err
 }

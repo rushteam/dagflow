@@ -14,8 +14,6 @@ CREATE TABLE IF NOT EXISTS task_runs (
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-ALTER TABLE task_runs ADD COLUMN IF NOT EXISTS output TEXT;
-
 CREATE INDEX IF NOT EXISTS idx_task_runs_task_id ON task_runs (task_id);
 CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs (status) WHERE status = 'running';
 CREATE INDEX IF NOT EXISTS idx_task_runs_parent ON task_runs (parent_run_id) WHERE parent_run_id IS NOT NULL;

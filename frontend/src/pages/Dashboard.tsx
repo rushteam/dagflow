@@ -100,7 +100,7 @@ export default function Dashboard({ user, onLogout }: Props) {
         <main className={styles.main}>
           <div className={styles.content}>
             {activeKey === 'tasks' && <TaskPanel onNavigateToRunLog={navigateToRunLog} />}
-            {activeKey === 'schedules' && <SchedulePanel />}
+            {activeKey === 'schedules' && <SchedulePanel onNavigateToRunLog={navigateToRunLog} />}
             {activeKey === 'callbacks' && <CallbackPanel />}
             {activeKey === 'runlog' && <RunLogPanel />}
             {activeKey === 'users' && <UsersPanel users={users} loading={loadingUsers} onRefresh={fetchUsers} />}

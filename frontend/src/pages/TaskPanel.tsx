@@ -576,7 +576,7 @@ function CheckIcon() {
 
 // ---- Run Row (with DAG child expand) ----
 
-function RunRow({ run, isDag, statusBadge, triggerLabel, onCancel }: {
+export function RunRow({ run, isDag, statusBadge, triggerLabel, onCancel }: {
   run: TaskRun; isDag: boolean;
   statusBadge: (s: string) => React.ReactNode;
   triggerLabel: (r: TaskRun) => string;

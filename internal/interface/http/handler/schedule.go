@@ -39,7 +39,6 @@ func (h *ScheduleHandler) RegisterRoutes(r chi.Router) {
 		r.Put("/api/v1/schedules/{id}", h.updateSchedule)
 		r.Delete("/api/v1/schedules/{id}", h.deleteSchedule)
 		r.Post("/api/v1/schedules/{id}/trigger", h.triggerSchedule)
-		r.Get("/api/v1/schedules/{id}/logs", h.getScheduleLogs)
 	})
 }
 
@@ -96,35 +95,6 @@ func toScheduleResponse(s gen.Schedule) scheduleResponse {
 	}
 	if s.CreatedBy.Valid {
 		resp.CreatedBy = &s.CreatedBy.Int64
-	}
-	return resp
-}
-
-type logResponse struct {
-	ID         int64      `json:"id"`
-	ScheduleID int64      `json:"schedule_id"`
-	StartedAt  time.Time  `json:"started_at"`
-	FinishedAt *time.Time `json:"finished_at,omitempty"`
-	Status     string     `json:"status"`
-	ErrorMsg   string     `json:"error_msg,omitempty"`
-	DurationMs *int64     `json:"duration_ms,omitempty"`
-}
-
-func toLogResponse(l gen.ScheduleLog) logResponse {
-	resp := logResponse{
-		ID:         l.ID,
-		ScheduleID: l.ScheduleID,
-		StartedAt:  l.StartedAt,
-		Status:     l.Status,
-	}
-	if l.FinishedAt.Valid {
-		resp.FinishedAt = &l.FinishedAt.Time
-	}
-	if l.ErrorMsg.Valid {
-		resp.ErrorMsg = l.ErrorMsg.String
-	}
-	if l.DurationMs.Valid {
-		resp.DurationMs = &l.DurationMs.Int64
 	}
 	return resp
 }
@@ -361,26 +331,6 @@ func (h *ScheduleHandler) triggerSchedule(w http.ResponseWriter, r *http.Request
 
 	h.scheduler.TriggerSchedule(r.Context(), id)
 	infrahttp.JSON(w, http.StatusOK, map[string]string{"message": "已触发执行"})
-}
-
-func (h *ScheduleHandler) getScheduleLogs(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
-	if err != nil {
-		infrahttp.Error(w, http.StatusBadRequest, "无效的 ID")
-		return
-	}
-
-	logs, err := h.queries.ListScheduleLogs(r.Context(), id)
-	if err != nil {
-		slog.ErrorContext(r.Context(), "查询执行日志失败", "error", err)
-		infrahttp.Error(w, http.StatusInternalServerError, "内部错误")
-		return
-	}
-	result := make([]logResponse, 0, len(logs))
-	for _, l := range logs {
-		result = append(result, toLogResponse(l))
-	}
-	infrahttp.JSON(w, http.StatusOK, result)
 }
 
 func parseID(r *http.Request) (int64, error) {

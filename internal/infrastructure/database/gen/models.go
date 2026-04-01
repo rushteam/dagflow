@@ -54,17 +54,6 @@ type Schedule struct {
 	UpdatedAt         time.Time       `json:"updated_at"`
 }
 
-type ScheduleLog struct {
-	ID         int64          `json:"id"`
-	ScheduleID int64          `json:"schedule_id"`
-	StartedAt  time.Time      `json:"started_at"`
-	FinishedAt sql.NullTime   `json:"finished_at"`
-	Status     string         `json:"status"`
-	ErrorMsg   sql.NullString `json:"error_msg"`
-	DurationMs sql.NullInt64  `json:"duration_ms"`
-	CreatedAt  time.Time      `json:"created_at"`
-}
-
 type Task struct {
 	ID        int64           `json:"id"`
 	Name      string          `json:"name"`
@@ -72,11 +61,11 @@ type Task struct {
 	Kind      string          `json:"kind"`
 	Payload   json.RawMessage `json:"payload"`
 	Variables json.RawMessage `json:"variables"`
+	Callback  json.RawMessage `json:"callback"`
 	Enabled   bool            `json:"enabled"`
 	CreatedBy sql.NullInt64   `json:"created_by"`
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
-	Callback  json.RawMessage `json:"callback"`
 }
 
 type TaskRun struct {

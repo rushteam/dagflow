@@ -29,19 +29,3 @@ WHERE id = $1;
 
 -- name: SetScheduleEnabled :exec
 UPDATE schedules SET enabled = $2, updated_at = NOW() WHERE id = $1;
-
--- name: CreateScheduleLog :one
-INSERT INTO schedule_logs (schedule_id, started_at, status)
-VALUES ($1, $2, $3)
-RETURNING *;
-
--- name: FinishScheduleLog :exec
-UPDATE schedule_logs
-SET finished_at = $2, status = $3, error_msg = $4, duration_ms = $5
-WHERE id = $1;
-
--- name: ListScheduleLogs :many
-SELECT * FROM schedule_logs
-WHERE schedule_id = $1
-ORDER BY created_at DESC
-LIMIT 50;

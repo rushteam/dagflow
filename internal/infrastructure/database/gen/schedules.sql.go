@@ -9,7 +9,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"time"
 )
 
 const createSchedule = `-- name: CreateSchedule :one
@@ -67,39 +66,6 @@ func (q *Queries) CreateSchedule(ctx context.Context, arg CreateScheduleParams) 
 	return i, err
 }
 
-const createScheduleLog = `-- name: CreateScheduleLog :one
-INSERT INTO schedule_logs (schedule_id, started_at, status)
-VALUES ($1, $2, $3)
-RETURNING id, schedule_id, started_at, finished_at, status, error_msg, duration_ms, created_at
-`
-
-type CreateScheduleLogParams struct {
-	ScheduleID int64     `json:"schedule_id"`
-	StartedAt  time.Time `json:"started_at"`
-	Status     string    `json:"status"`
-}
-
-// CreateScheduleLog
-//
-//	INSERT INTO schedule_logs (schedule_id, started_at, status)
-//	VALUES ($1, $2, $3)
-//	RETURNING id, schedule_id, started_at, finished_at, status, error_msg, duration_ms, created_at
-func (q *Queries) CreateScheduleLog(ctx context.Context, arg CreateScheduleLogParams) (ScheduleLog, error) {
-	row := q.db.QueryRowContext(ctx, createScheduleLog, arg.ScheduleID, arg.StartedAt, arg.Status)
-	var i ScheduleLog
-	err := row.Scan(
-		&i.ID,
-		&i.ScheduleID,
-		&i.StartedAt,
-		&i.FinishedAt,
-		&i.Status,
-		&i.ErrorMsg,
-		&i.DurationMs,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const deleteSchedule = `-- name: DeleteSchedule :exec
 DELETE FROM schedules WHERE id = $1
 `
@@ -109,36 +75,6 @@ DELETE FROM schedules WHERE id = $1
 //	DELETE FROM schedules WHERE id = $1
 func (q *Queries) DeleteSchedule(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteSchedule, id)
-	return err
-}
-
-const finishScheduleLog = `-- name: FinishScheduleLog :exec
-UPDATE schedule_logs
-SET finished_at = $2, status = $3, error_msg = $4, duration_ms = $5
-WHERE id = $1
-`
-
-type FinishScheduleLogParams struct {
-	ID         int64          `json:"id"`
-	FinishedAt sql.NullTime   `json:"finished_at"`
-	Status     string         `json:"status"`
-	ErrorMsg   sql.NullString `json:"error_msg"`
-	DurationMs sql.NullInt64  `json:"duration_ms"`
-}
-
-// FinishScheduleLog
-//
-//	UPDATE schedule_logs
-//	SET finished_at = $2, status = $3, error_msg = $4, duration_ms = $5
-//	WHERE id = $1
-func (q *Queries) FinishScheduleLog(ctx context.Context, arg FinishScheduleLogParams) error {
-	_, err := q.db.ExecContext(ctx, finishScheduleLog,
-		arg.ID,
-		arg.FinishedAt,
-		arg.Status,
-		arg.ErrorMsg,
-		arg.DurationMs,
-	)
 	return err
 }
 
@@ -214,51 +150,6 @@ func (q *Queries) GetScheduleByID(ctx context.Context, id int64) (Schedule, erro
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const listScheduleLogs = `-- name: ListScheduleLogs :many
-SELECT id, schedule_id, started_at, finished_at, status, error_msg, duration_ms, created_at FROM schedule_logs
-WHERE schedule_id = $1
-ORDER BY created_at DESC
-LIMIT 50
-`
-
-// ListScheduleLogs
-//
-//	SELECT id, schedule_id, started_at, finished_at, status, error_msg, duration_ms, created_at FROM schedule_logs
-//	WHERE schedule_id = $1
-//	ORDER BY created_at DESC
-//	LIMIT 50
-func (q *Queries) ListScheduleLogs(ctx context.Context, scheduleID int64) ([]ScheduleLog, error) {
-	rows, err := q.db.QueryContext(ctx, listScheduleLogs, scheduleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ScheduleLog{}
-	for rows.Next() {
-		var i ScheduleLog
-		if err := rows.Scan(
-			&i.ID,
-			&i.ScheduleID,
-			&i.StartedAt,
-			&i.FinishedAt,
-			&i.Status,
-			&i.ErrorMsg,
-			&i.DurationMs,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listSchedules = `-- name: ListSchedules :many
