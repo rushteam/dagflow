@@ -7,6 +7,23 @@ export interface User {
   last_login?: string
 }
 
+export interface APITokenInfo {
+  id: number
+  name: string
+  prefix: string
+  created_by: number
+  creator_name?: string
+  expires_at?: string
+  last_used_at?: string
+  enabled: boolean
+  created_at: string
+}
+
+export interface CreateAPITokenResult {
+  token: string
+  info: APITokenInfo
+}
+
 interface AuthResponse {
   token: string
   user: User
@@ -59,6 +76,23 @@ class ApiClient {
 
   listUsers(): Promise<User[]> {
     return this.request('/api/v1/users')
+  }
+
+  // ---- API tokens (tk_…，需登录后 JWT 管理) ----
+
+  listAPITokens(): Promise<APITokenInfo[]> {
+    return this.request('/api/v1/tokens')
+  }
+
+  createAPIToken(name: string, expires_in: string): Promise<CreateAPITokenResult> {
+    return this.request('/api/v1/tokens', {
+      method: 'POST',
+      body: JSON.stringify({ name, expires_in }),
+    })
+  }
+
+  revokeAPIToken(id: number): Promise<void> {
+    return this.request(`/api/v1/tokens/${id}`, { method: 'DELETE' })
   }
 
   // ---- kinds ----

@@ -6,6 +6,7 @@ import TaskPanel from './TaskPanel'
 import SchedulePanel from './SchedulePanel'
 import CallbackPanel from './CallbackPanel'
 import RunLogPanel from './RunLogPanel'
+import TokenPanel from './TokenPanel'
 import styles from './Dashboard.module.css'
 
 const NAV_ITEMS = [
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
   { key: 'callbacks', path: '/callbacks', label: '回调管理' },
   { key: 'runlog', path: '/runlog', label: '运行日志' },
   { key: 'users', path: '/users', label: '用户管理' },
+  { key: 'tokens', path: '/tokens', label: 'API 令牌' },
   { key: 'overview', path: '/overview', label: '系统概览' },
 ]
 
@@ -104,6 +106,7 @@ export default function Dashboard({ user, onLogout }: Props) {
             {activeKey === 'callbacks' && <CallbackPanel />}
             {activeKey === 'runlog' && <RunLogPanel />}
             {activeKey === 'users' && <UsersPanel users={users} loading={loadingUsers} onRefresh={fetchUsers} />}
+            {activeKey === 'tokens' && <TokenPanel />}
             {activeKey === 'overview' && <OverviewPanel users={users} />}
           </div>
         </main>
