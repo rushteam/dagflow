@@ -355,14 +355,14 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
                   名称（唯一标识）
                   <Input className={styles.formInput} value={form.name}
                     onChange={(e) => set({ name: e.target.value })} required
-                    placeholder="extract_ids" />
+                    placeholder="输入任务名称（英文标识）" />
                 </label>
 
                 <label className={styles.formLabel}>
                   标签（显示名）
                   <Input className={styles.formInput} value={form.label}
                     onChange={(e) => set({ label: e.target.value })}
-                    placeholder="提取用户ID" />
+                    placeholder="输入显示名称（中文）" />
                 </label>
 
                 <div className={styles.formLabel}>
@@ -1007,7 +1007,7 @@ function DagPayloadForm({ nodes, strategy, tasks, onNodesChange, onStrategyChang
               <label className={styles.formLabel}>
                 节点名
                 <Input className={styles.formInput} value={formName}
-                  onChange={e => setFormName(e.target.value)} placeholder="步骤名称"
+                  onChange={e => setFormName(e.target.value)} placeholder="输入步骤名称"
                   readOnly={panelMode === 'edit'} />
                 {nameConflict && <span className={styles.dagFieldErr}>名称已存在</span>}
               </label>

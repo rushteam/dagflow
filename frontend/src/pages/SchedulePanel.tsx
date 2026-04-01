@@ -381,80 +381,63 @@ function ScheduleFormDialog({ tasks, schedule, onClose, onSaved }: {
 
 // ---- Variable Overrides Editor ----
 
+const EXPR_EXAMPLES = [
+  { syntax: '${dateFormat(yyyyMMdd, -1d)}', desc: '昨日日期' },
+  { syntax: '${dateFormat(yyyy-MM-dd, 0d)}', desc: '今日日期' },
+  { syntax: '${timestamp()}', desc: 'Unix 秒' },
+  { syntax: '${timestampMs()}', desc: 'Unix 毫秒' },
+  { syntax: '${uuid()}', desc: '随机 UUID' },
+]
+
 function VarOverridesEditor({ taskVars, overrides, onChange }: {
   taskVars: { key: string; default_value: string }[]
   overrides: VarOverride[]
   onChange: (overrides: VarOverride[]) => void
 }) {
-  const getOverride = (key: string): VarOverride => {
-    return overrides.find(o => o.key === key) ?? { key, type: 'fixed', value: '' }
+  const getValue = (key: string): string => {
+    return overrides.find(o => o.key === key)?.value ?? ''
   }
 
-  const updateOverride = (key: string, patch: Partial<VarOverride>) => {
+  const setValue = (key: string, value: string) => {
     const existing = overrides.find(o => o.key === key)
     if (existing) {
-      onChange(overrides.map(o => o.key === key ? { ...o, ...patch } : o))
+      onChange(overrides.map(o => o.key === key ? { key, value } : o))
     } else {
-      onChange([...overrides, { key, type: 'fixed', ...patch }])
+      onChange([...overrides, { key, value }])
     }
   }
 
+  const [showHelp, setShowHelp] = useState(false)
+
   return (
     <div className={styles.overridesSection}>
-      <span className={styles.overridesTitle}>变量覆盖</span>
-      <span className={styles.overridesHint}>不配置则使用任务默认值</span>
-      {taskVars.map(tv => {
-        const ov = getOverride(tv.key)
-        return (
-          <div key={tv.key} className={styles.overrideRow}>
-            <span className={styles.overrideKey}>${'{' + tv.key + '}'}</span>
-            <Select.Root value={ov.type}
-              onValueChange={(val) => {
-                if (!val) return
-                if (val === 'fixed') updateOverride(tv.key, { type: 'fixed', value: tv.default_value, format: undefined, offset: undefined })
-                else updateOverride(tv.key, { type: 'date' as const, value: undefined, format: 'yyyyMMdd', offset: '0d' })
-              }}>
-              <Select.Trigger className={styles.overrideSelect}>
-                <Select.Value />
-                <Select.Icon className={styles.selectIcon}><ChevronIcon /></Select.Icon>
-              </Select.Trigger>
-              <Select.Portal>
-                <Select.Positioner className={styles.selectPositioner} sideOffset={4}>
-                  <Select.Popup className={styles.selectPopup}>
-                    <Select.List>
-                      <Select.Item value="fixed" className={styles.selectItem}>
-                        <Select.ItemText>固定值</Select.ItemText>
-                        <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
-                      </Select.Item>
-                      <Select.Item value="date" className={styles.selectItem}>
-                        <Select.ItemText>日期函数</Select.ItemText>
-                        <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
-                      </Select.Item>
-                    </Select.List>
-                  </Select.Popup>
-                </Select.Positioner>
-              </Select.Portal>
-            </Select.Root>
-            {ov.type === 'fixed' ? (
-              <Input className={styles.overrideInput}
-                value={ov.value ?? ''}
-                onChange={e => updateOverride(tv.key, { value: e.target.value })}
-                placeholder={tv.default_value || '值'} />
-            ) : (
-              <>
-                <Input className={styles.overrideInput}
-                  value={ov.format ?? ''}
-                  onChange={e => updateOverride(tv.key, { format: e.target.value })}
-                  placeholder="yyyyMMdd" />
-                <Input className={styles.overrideInputShort}
-                  value={ov.offset ?? ''}
-                  onChange={e => updateOverride(tv.key, { offset: e.target.value })}
-                  placeholder="0d" />
-              </>
-            )}
-          </div>
-        )
-      })}
+      <div className={styles.overridesTitleRow}>
+        <span className={styles.overridesTitle}>变量覆盖</span>
+        <button type="button" className={styles.helpToggle} onClick={() => setShowHelp(!showHelp)}>
+          {showHelp ? '收起' : '表达式语法'}
+        </button>
+      </div>
+      {showHelp && (
+        <div className={styles.exprHelp}>
+          <span className={styles.overridesHint}>支持模板表达式，偏移: -1d/+2h/-3M/1y</span>
+          {EXPR_EXAMPLES.map(e => (
+            <div key={e.syntax} className={styles.exprExample}>
+              <code className={styles.exprCode}>{e.syntax}</code>
+              <span className={styles.exprDesc}>{e.desc}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      <span className={styles.overridesHint}>留空使用任务默认值，可直接输入固定值或表达式</span>
+      {taskVars.map(tv => (
+        <div key={tv.key} className={styles.overrideRow}>
+          <span className={styles.overrideKey}>${'{' + tv.key + '}'}</span>
+          <Input className={styles.overrideInput}
+            value={getValue(tv.key)}
+            onChange={e => setValue(tv.key, e.target.value)}
+            placeholder={tv.default_value || '固定值或 ${func(...)}'} />
+        </div>
+      ))}
     </div>
   )
 }

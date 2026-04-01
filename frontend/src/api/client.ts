@@ -183,6 +183,10 @@ class ApiClient {
   deleteCallback(id: number): Promise<void> {
     return this.request(`/api/v1/callbacks/${id}`, { method: 'DELETE' })
   }
+
+  listCallbackVars(): Promise<CallbackVarInfo[]> {
+    return this.request('/api/v1/callback-vars')
+  }
 }
 
 export interface KindInfo {
@@ -220,10 +224,7 @@ export interface TaskInput {
 
 export interface VarOverride {
   key: string
-  type: 'fixed' | 'date'
-  value?: string
-  format?: string
-  offset?: string
+  value: string
 }
 
 export interface Schedule {
@@ -301,6 +302,7 @@ export interface Callback {
   url: string
   events: string[]
   headers: Record<string, string>
+  body_template: string
   match_mode: 'all' | 'selected'
   task_ids: number[]
   enabled: boolean
@@ -314,9 +316,16 @@ export interface CallbackInput {
   url: string
   events: string[]
   headers: Record<string, string>
+  body_template: string
   match_mode: 'all' | 'selected'
   task_ids: number[]
   enabled: boolean
+}
+
+export interface CallbackVarInfo {
+  name: string
+  label: string
+  example: string
 }
 
 export const api = new ApiClient()

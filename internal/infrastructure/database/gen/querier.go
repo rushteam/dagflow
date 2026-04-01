@@ -26,9 +26,9 @@ type Querier interface {
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
 	//CreateCallback
 	//
-	//  INSERT INTO callbacks (name, url, events, headers, match_mode, task_ids, enabled, created_by)
-	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	//  RETURNING id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at
+	//  INSERT INTO callbacks (name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by)
+	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+	//  RETURNING id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at
 	CreateCallback(ctx context.Context, arg CreateCallbackParams) (Callback, error)
 	//CreateSchedule
 	//
@@ -96,7 +96,7 @@ type Querier interface {
 	GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiToken, error)
 	//GetCallbackByID
 	//
-	//  SELECT id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks WHERE id = $1
+	//  SELECT id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks WHERE id = $1
 	GetCallbackByID(ctx context.Context, id int64) (Callback, error)
 	//GetEnabledSchedules
 	//
@@ -153,7 +153,7 @@ type Querier interface {
 	ListAllAPITokens(ctx context.Context) ([]ListAllAPITokensRow, error)
 	//ListCallbacks
 	//
-	//  SELECT id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks ORDER BY created_at DESC
+	//  SELECT id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks ORDER BY created_at DESC
 	ListCallbacks(ctx context.Context) ([]Callback, error)
 	//ListChildRuns
 	//
@@ -168,7 +168,7 @@ type Querier interface {
 	ListChildRuns(ctx context.Context, parentRunID sql.NullInt64) ([]ListChildRunsRow, error)
 	//ListEnabledCallbacks
 	//
-	//  SELECT id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks WHERE enabled = TRUE ORDER BY id
+	//  SELECT id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks WHERE enabled = TRUE ORDER BY id
 	ListEnabledCallbacks(ctx context.Context) ([]Callback, error)
 	//ListEnabledTasks
 	//
@@ -229,9 +229,9 @@ type Querier interface {
 	//UpdateCallback
 	//
 	//  UPDATE callbacks
-	//  SET name = $2, url = $3, events = $4, headers = $5, match_mode = $6, task_ids = $7, enabled = $8, updated_at = NOW()
+	//  SET name = $2, url = $3, events = $4, headers = $5, body_template = $6, match_mode = $7, task_ids = $8, enabled = $9, updated_at = NOW()
 	//  WHERE id = $1
-	//  RETURNING id, name, url, events, headers, match_mode, task_ids, enabled, created_by, created_at, updated_at
+	//  RETURNING id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at
 	UpdateCallback(ctx context.Context, arg UpdateCallbackParams) (Callback, error)
 	//UpdateSchedule
 	//

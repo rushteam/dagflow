@@ -3,10 +3,8 @@ package scheduler
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -226,10 +224,7 @@ func (s *Scheduler) executeSchedule(ctx context.Context, scheduleID int64) {
 		NextRunAt: sch.NextRunAt,
 	})
 
-	vars, varErr := varfunc.Resolve(sch.VariableOverrides, time.Now())
-	if varErr != nil {
-		slog.ErrorContext(ctx, "调度变量解析失败", "id", scheduleID, "error", varErr)
-	}
+	vars := varfunc.ResolveOverrides(sch.VariableOverrides, time.Now())
 
 	taskErr := s.dispatch(ctx, sch.TaskID, "schedule",
 		sql.NullInt64{Int64: scheduleID, Valid: true}, sql.NullInt64{}, sql.NullInt64{}, vars)
@@ -313,7 +308,7 @@ func (s *Scheduler) dispatch(ctx context.Context, taskID int64, triggerType stri
 	if len(vars) == 0 {
 		vars = dag.VarsFromContext(ctx)
 	}
-	payload := substituteVars(task.Payload, task.Variables, vars)
+	payload := varfunc.RenderPayload(task.Payload, task.Variables, vars, time.Now())
 
 	// ⑤ 为 DAG 任务注入编排上下文
 	if task.Kind == "dag" && run.ID > 0 {
@@ -360,6 +355,8 @@ func (s *Scheduler) dispatch(ctx context.Context, taskID int64, triggerType stri
 			RunID:      run.ID,
 			TaskID:     taskID,
 			TaskName:   task.Name,
+			TaskLabel:  task.Label,
+			TaskKind:   task.Kind,
 			Status:     result.Status,
 			DurationMs: result.DurationMs,
 			Error:      result.Error,
@@ -374,25 +371,3 @@ func (s *Scheduler) dispatch(ctx context.Context, taskID int64, triggerType stri
 	return nil
 }
 
-// substituteVars 将 payload 中的 ${key} 占位符替换为 vars 中的值，
-// 未提供的 key 回退到变量定义中的默认值。
-func substituteVars(payload json.RawMessage, varDefs json.RawMessage, vars map[string]string) json.RawMessage {
-	type varDef struct {
-		Key          string `json:"key"`
-		DefaultValue string `json:"default_value"`
-	}
-	var defs []varDef
-	if err := json.Unmarshal(varDefs, &defs); err != nil || len(defs) == 0 {
-		return payload
-	}
-
-	s := string(payload)
-	for _, d := range defs {
-		val := d.DefaultValue
-		if v, ok := vars[d.Key]; ok {
-			val = v
-		}
-		s = strings.ReplaceAll(s, "${"+d.Key+"}", val)
-	}
-	return json.RawMessage(s)
-}

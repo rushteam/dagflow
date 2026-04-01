@@ -1,11 +1,11 @@
 -- name: CreateCallback :one
-INSERT INTO callbacks (name, url, events, headers, match_mode, task_ids, enabled, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO callbacks (name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: UpdateCallback :one
 UPDATE callbacks
-SET name = $2, url = $3, events = $4, headers = $5, match_mode = $6, task_ids = $7, enabled = $8, updated_at = NOW()
+SET name = $2, url = $3, events = $4, headers = $5, body_template = $6, match_mode = $7, task_ids = $8, enabled = $9, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
 

@@ -4,7 +4,7 @@ import { Drawer } from '@base-ui/react/drawer'
 import { Input } from '@base-ui/react/input'
 import { Select } from '@base-ui/react/select'
 import { Switch } from '@base-ui/react/switch'
-import { api, type Callback, type CallbackInput, type Task } from '../api/client'
+import { api, type Callback, type CallbackInput, type CallbackVarInfo, type Task } from '../api/client'
 import styles from './CallbackPanel.module.css'
 
 const ALL_EVENTS = [
@@ -37,7 +37,8 @@ export default function CallbackPanel() {
     try {
       await api.updateCallback(cb.id, {
         name: cb.name, url: cb.url, events: cb.events,
-        headers: cb.headers, match_mode: cb.match_mode,
+        headers: cb.headers, body_template: cb.body_template,
+        match_mode: cb.match_mode,
         task_ids: cb.task_ids, enabled: !cb.enabled,
       })
       fetchData()
@@ -175,13 +176,14 @@ function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
       url: callback.url,
       events: callback.events,
       headers: callback.headers,
+      body_template: callback.body_template,
       match_mode: callback.match_mode,
       task_ids: callback.task_ids,
       enabled: callback.enabled,
     }
     return {
       name: '', url: '', events: ['success', 'failed', 'cancelled'],
-      headers: {}, match_mode: 'all', task_ids: [], enabled: true,
+      headers: {}, body_template: '', match_mode: 'all', task_ids: [], enabled: true,
     }
   })
 
@@ -189,8 +191,12 @@ function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
     const h = callback?.headers ?? {}
     return Object.entries(h).map(([k, v]) => `${k}: ${v}`).join('\n')
   })
+  const [cbVars, setCbVars] = useState<CallbackVarInfo[]>([])
+  const [showVarHelp, setShowVarHelp] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => { api.listCallbackVars().then(setCbVars).catch(() => {}) }, [])
 
   const set = (patch: Partial<CallbackInput>) => setForm(prev => ({ ...prev, ...patch }))
 
@@ -271,14 +277,14 @@ function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
                   名称
                   <Input className={styles.formInput} value={form.name}
                     onChange={e => set({ name: e.target.value })} required
-                    placeholder="飞书通知" />
+                    placeholder="输入回调名称" />
                 </label>
 
                 <label className={styles.formLabel}>
                   回调 URL
                   <Input className={styles.formInput} value={form.url}
                     onChange={e => set({ url: e.target.value })} required
-                    placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx" />
+                    placeholder="输入回调地址，如 Webhook URL" />
                 </label>
 
                 <div className={styles.formLabel}>
@@ -344,9 +350,36 @@ function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
                   自定义 Headers（可选）
                   <textarea className={styles.formTextarea} value={headersText}
                     onChange={e => setHeadersText(e.target.value)} rows={2}
-                    placeholder={"Authorization: Bearer token\nX-Custom: value"} />
-                  <span className={styles.hint}>每行一个 Header，格式 Key: Value</span>
+                    placeholder="每行一个，格式 Key: Value" />
+                  <span className={styles.hint}>如 Authorization: Bearer token</span>
                 </label>
+
+                <div className={styles.formLabel}>
+                  <div className={styles.bodyTitleRow}>
+                    <span>请求体模板（可选）</span>
+                    <button type="button" className={styles.helpToggle}
+                      onClick={() => setShowVarHelp(!showVarHelp)}>
+                      {showVarHelp ? '收起' : '可用变量'}
+                    </button>
+                  </div>
+                  {showVarHelp && cbVars.length > 0 && (
+                    <div className={styles.varHelp}>
+                      {cbVars.map(v => (
+                        <div key={v.name} className={styles.varHelpRow}>
+                          <code className={styles.varCode}>${'{' + v.name + '}'}</code>
+                          <span className={styles.varLabel}>{v.label}</span>
+                        </div>
+                      ))}
+                      <span className={styles.hint}>
+                        也支持函数: {'${dateFormat(yyyyMMdd, -1d)}'}, {'${uuid()}'} 等
+                      </span>
+                    </div>
+                  )}
+                  <textarea className={styles.formTextarea} value={form.body_template}
+                    onChange={e => set({ body_template: e.target.value })} rows={6}
+                    placeholder={'留空使用默认 JSON body，自定义示例：\n{\n  "msg_type": "text",\n  "content": {\n    "text": "[${status}] ${task_label}(${task_kind}) 耗时${duration_ms}ms"\n  }\n}'} />
+                  <span className={styles.hint}>留空则发送包含所有字段的默认 JSON</span>
+                </div>
 
                 <div className={styles.formSwitchRow}>
                   <span className={styles.formSwitchLabel}>启用</span>

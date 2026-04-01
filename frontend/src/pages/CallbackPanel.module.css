@@ -444,3 +444,47 @@
   color: #999;
   font-size: 13px;
 }
+.bodyTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.helpToggle {
+  background: none;
+  border: none;
+  color: #1677ff;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+.helpToggle:hover {
+  text-decoration: underline;
+}
+.varHelp {
+  background: #f6f8fa;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 4px;
+}
+.varHelpRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.varCode {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #d4380d;
+  background: #fff2e8;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.varLabel {
+  color: #8c8c8c;
+  font-size: 11px;
+}

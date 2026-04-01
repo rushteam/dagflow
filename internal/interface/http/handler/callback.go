@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/rushteam/dagflow/internal/application/callback"
 	"github.com/rushteam/dagflow/internal/infrastructure/auth"
 	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
 	infrahttp "github.com/rushteam/dagflow/internal/infrastructure/http"
@@ -31,42 +32,46 @@ func (h *CallbackHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/api/v1/callbacks/{id}", h.get)
 		r.Put("/api/v1/callbacks/{id}", h.update)
 		r.Delete("/api/v1/callbacks/{id}", h.delete)
+		r.Get("/api/v1/callback-vars", h.listVars)
 	})
 }
 
 type callbackRequest struct {
-	Name      string            `json:"name"`
-	URL       string            `json:"url"`
-	Events    []string          `json:"events"`
-	Headers   map[string]string `json:"headers"`
-	MatchMode string            `json:"match_mode"`
-	TaskIDs   []int64           `json:"task_ids"`
-	Enabled   bool              `json:"enabled"`
+	Name         string            `json:"name"`
+	URL          string            `json:"url"`
+	Events       []string          `json:"events"`
+	Headers      map[string]string `json:"headers"`
+	BodyTemplate string            `json:"body_template"`
+	MatchMode    string            `json:"match_mode"`
+	TaskIDs      []int64           `json:"task_ids"`
+	Enabled      bool              `json:"enabled"`
 }
 
 type callbackResponse struct {
-	ID        int64             `json:"id"`
-	Name      string            `json:"name"`
-	URL       string            `json:"url"`
-	Events    []string          `json:"events"`
-	Headers   map[string]string `json:"headers"`
-	MatchMode string            `json:"match_mode"`
-	TaskIDs   []int64           `json:"task_ids"`
-	Enabled   bool              `json:"enabled"`
-	CreatedBy *int64            `json:"created_by,omitempty"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
+	ID           int64             `json:"id"`
+	Name         string            `json:"name"`
+	URL          string            `json:"url"`
+	Events       []string          `json:"events"`
+	Headers      map[string]string `json:"headers"`
+	BodyTemplate string            `json:"body_template"`
+	MatchMode    string            `json:"match_mode"`
+	TaskIDs      []int64           `json:"task_ids"`
+	Enabled      bool              `json:"enabled"`
+	CreatedBy    *int64            `json:"created_by,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
 }
 
 func toCallbackResponse(c gen.Callback) callbackResponse {
 	resp := callbackResponse{
-		ID:        c.ID,
-		Name:      c.Name,
-		URL:       c.Url,
-		MatchMode: c.MatchMode,
-		Enabled:   c.Enabled,
-		CreatedAt: c.CreatedAt,
-		UpdatedAt: c.UpdatedAt,
+		ID:           c.ID,
+		Name:         c.Name,
+		URL:          c.Url,
+		BodyTemplate: c.BodyTemplate,
+		MatchMode:    c.MatchMode,
+		Enabled:      c.Enabled,
+		CreatedAt:    c.CreatedAt,
+		UpdatedAt:    c.UpdatedAt,
 	}
 	if c.CreatedBy.Valid {
 		resp.CreatedBy = &c.CreatedBy.Int64
@@ -160,14 +165,15 @@ func (h *CallbackHandler) create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	cb, err := h.queries.CreateCallback(r.Context(), gen.CreateCallbackParams{
-		Name:      req.Name,
-		Url:       req.URL,
-		Events:    eventsJSON,
-		Headers:   headersJSON,
-		MatchMode: req.MatchMode,
-		TaskIds:   taskIDsJSON,
-		Enabled:   req.Enabled,
-		CreatedBy: createdBy,
+		Name:         req.Name,
+		Url:          req.URL,
+		Events:       eventsJSON,
+		Headers:      headersJSON,
+		BodyTemplate: req.BodyTemplate,
+		MatchMode:    req.MatchMode,
+		TaskIds:      taskIDsJSON,
+		Enabled:      req.Enabled,
+		CreatedBy:    createdBy,
 	})
 	if err != nil {
 		slog.ErrorContext(r.Context(), "创建回调失败", "error", err)
@@ -201,14 +207,15 @@ func (h *CallbackHandler) update(w http.ResponseWriter, r *http.Request) {
 	taskIDsJSON, _ := json.Marshal(defaultTaskIDs(req.TaskIDs))
 
 	cb, err := h.queries.UpdateCallback(r.Context(), gen.UpdateCallbackParams{
-		ID:        id,
-		Name:      req.Name,
-		Url:       req.URL,
-		Events:    eventsJSON,
-		Headers:   headersJSON,
-		MatchMode: req.MatchMode,
-		TaskIds:   taskIDsJSON,
-		Enabled:   req.Enabled,
+		ID:           id,
+		Name:         req.Name,
+		Url:          req.URL,
+		Events:       eventsJSON,
+		Headers:      headersJSON,
+		BodyTemplate: req.BodyTemplate,
+		MatchMode:    req.MatchMode,
+		TaskIds:      taskIDsJSON,
+		Enabled:      req.Enabled,
 	})
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -234,6 +241,10 @@ func (h *CallbackHandler) delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *CallbackHandler) listVars(w http.ResponseWriter, _ *http.Request) {
+	infrahttp.JSON(w, http.StatusOK, callback.BuiltinVars())
 }
 
 func defaultEvents(events []string) []string {

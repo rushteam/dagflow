@@ -402,14 +402,6 @@
   white-space: nowrap;
   flex-shrink: 0;
 }
-.overrideSelect {
-  composes: selectTrigger;
-  width: auto;
-  min-width: 100px;
-  flex-shrink: 0;
-  padding: 4px 8px;
-  font-size: 12px;
-}
 .overrideInput {
   composes: formInput;
   flex: 1;
@@ -417,10 +409,45 @@
   font-size: 12px;
   padding: 4px 8px;
 }
-.overrideInputShort {
-  composes: formInput;
-  width: 70px;
-  flex-shrink: 0;
+.overridesTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.helpToggle {
+  background: none;
+  border: none;
+  color: #1677ff;
   font-size: 12px;
-  padding: 4px 8px;
+  cursor: pointer;
+  padding: 0;
+}
+.helpToggle:hover {
+  text-decoration: underline;
+}
+.exprHelp {
+  background: #f6f8fa;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.exprExample {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.exprCode {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #d4380d;
+  background: #fff2e8;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.exprDesc {
+  color: #8c8c8c;
+  font-size: 11px;
 }
