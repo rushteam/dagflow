@@ -432,8 +432,23 @@ func (h *TaskHandler) deleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.queries.DeleteTask(r.Context(), id); err != nil {
-		slog.ErrorContext(r.Context(), "删除任务失败", "error", err)
+	ctx := r.Context()
+
+	schedules, err := h.queries.ListSchedulesByTaskID(ctx, id)
+	if err != nil {
+		slog.ErrorContext(ctx, "查询关联调度失败", "task_id", id, "error", err)
+		infrahttp.Error(w, http.StatusInternalServerError, "删除任务失败")
+		return
+	}
+	for _, sch := range schedules {
+		h.scheduler.RemoveSchedule(sch.ID)
+		if err := h.queries.DeleteSchedule(ctx, sch.ID); err != nil {
+			slog.ErrorContext(ctx, "删除关联调度失败", "schedule_id", sch.ID, "error", err)
+		}
+	}
+
+	if err := h.queries.DeleteTask(ctx, id); err != nil {
+		slog.ErrorContext(ctx, "删除任务失败", "error", err)
 		infrahttp.Error(w, http.StatusInternalServerError, "删除任务失败")
 		return
 	}

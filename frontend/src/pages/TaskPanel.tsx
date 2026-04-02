@@ -4,7 +4,8 @@ import { Drawer } from '@base-ui/react/drawer'
 import { Input } from '@base-ui/react/input'
 import { Select } from '@base-ui/react/select'
 import { Switch } from '@base-ui/react/switch'
-import { api, type Task, type TaskInput, type TaskVariable, type KindInfo, type TaskRun, type ChildRun, type Schedule } from '../api/client'
+import { api, type Task, type TaskInput, type TaskVariable, type KindInfo, type TaskRun, type AllTaskRun, type ChildRun, type Schedule } from '../api/client'
+import { RunDetailDialog } from '../components/RunDetailDialog'
 import styles from './TaskPanel.module.css'
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
@@ -639,6 +640,8 @@ function TaskRunsDialog({ task, onClose, onNavigateToRunLog }: {
 }) {
   const [allRuns, setAllRuns] = useState<TaskRun[]>([])
   const [loading, setLoading] = useState(true)
+  const [detailRun, setDetailRun] = useState<AllTaskRun | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const fetchRuns = useCallback(async () => {
     setLoading(true)
@@ -677,7 +680,17 @@ function TaskRunsDialog({ task, onClose, onNavigateToRunLog }: {
     onNavigateToRunLog?.()
   }
 
+  const openDetail = async (runId: number) => {
+    setDetailLoading(true)
+    try {
+      const detail = await api.getTaskRunDetail(runId)
+      setDetailRun(detail)
+    } catch { /* ignore */ }
+    finally { setDetailLoading(false) }
+  }
+
   return (
+    <>
     <Dialog.Root open onOpenChange={(open) => { if (!open) onClose() }}>
       <Dialog.Portal>
         <Dialog.Backdrop className={styles.backdrop} />
@@ -688,7 +701,7 @@ function TaskRunsDialog({ task, onClose, onNavigateToRunLog }: {
 
           <div className={styles.runsToolbar}>
             <span className={styles.runsCount}>最近 {runs.length} 条{hasMore ? `（共 ${allRuns.length} 条）` : ''}</span>
-            <button className={styles.refreshBtn} onClick={fetchRuns} disabled={loading}>
+            <button className={styles.refreshBtn} onClick={fetchRuns} disabled={loading || detailLoading}>
               {loading ? '刷新中...' : '刷新'}
             </button>
           </div>
@@ -710,7 +723,7 @@ function TaskRunsDialog({ task, onClose, onNavigateToRunLog }: {
                 {runs.map(r => (
                   <RunRow key={r.id} run={r} isDag={task.kind === 'dag'}
                     statusBadge={statusBadge} triggerLabel={triggerLabel}
-                    onCancel={handleCancel} />
+                    onCancel={handleCancel} onDetail={openDetail} />
                 ))}
                 {runs.length === 0 && !loading && (
                   <tr><td colSpan={7} className={styles.empty}>暂无运行记录</td></tr>
@@ -730,6 +743,13 @@ function TaskRunsDialog({ task, onClose, onNavigateToRunLog }: {
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
+
+      {detailRun && (
+        <RunDetailDialog run={detailRun}
+          onCancel={handleCancel}
+          onClose={() => setDetailRun(null)} />
+      )}
+    </>
   )
 }
 
@@ -759,11 +779,12 @@ function CheckIcon() {
 
 // ---- Run Row (with DAG child expand) ----
 
-export function RunRow({ run, isDag, statusBadge, triggerLabel, onCancel }: {
+export function RunRow({ run, isDag, statusBadge, triggerLabel, onCancel, onDetail }: {
   run: TaskRun; isDag: boolean;
   statusBadge: (s: string) => React.ReactNode;
   triggerLabel: (r: TaskRun) => string;
   onCancel: (runId: number) => void;
+  onDetail?: (runId: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false)
   const [children, setChildren] = useState<ChildRun[]>([])
@@ -778,10 +799,11 @@ export function RunRow({ run, isDag, statusBadge, triggerLabel, onCancel }: {
 
   return (
     <>
-      <tr>
+      <tr className={onDetail ? styles.clickableRow : undefined}
+        onClick={onDetail ? () => onDetail(run.id) : undefined}>
         <td>
           {isDag && (
-            <button className={styles.expandBtn} onClick={toggleExpand}>
+            <button className={styles.expandBtn} onClick={(e) => { e.stopPropagation(); toggleExpand() }}>
               {expanded ? '▾' : '▸'}
             </button>
           )}
@@ -794,7 +816,7 @@ export function RunRow({ run, isDag, statusBadge, triggerLabel, onCancel }: {
         <td className={styles.errorCell} title={run.error_msg ?? ''}>
           {run.error_msg || '-'}
         </td>
-        <td>
+        <td onClick={e => e.stopPropagation()}>
           {run.status === 'running' && (
             <button className={styles.cancelRunBtn} onClick={() => onCancel(run.id)}>
               停止

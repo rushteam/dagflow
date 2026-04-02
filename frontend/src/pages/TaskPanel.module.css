@@ -933,3 +933,7 @@
   font-size: 12px;
   background: #f8f9fa;
 }
+
+/* Clickable run row */
+.clickableRow { cursor: pointer; }
+.clickableRow:hover { background: #f0f5ff !important; }
