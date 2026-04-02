@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/rushteam/dagflow/internal/application/dag"
+	"github.com/rushteam/dagflow/internal/application/etl"
 	"github.com/rushteam/dagflow/internal/application/executor"
 	appscheduler "github.com/rushteam/dagflow/internal/application/scheduler"
 	"github.com/rushteam/dagflow/internal/application/worker"
@@ -62,6 +63,14 @@ func main() {
 
 	dagExec := dag.NewExecutor(db.DB)
 	kinds.Register(dagExec.Info())
+
+	// ETL executor：连接信息在任务 payload 中配置，无需全局配置
+	etlReg := etl.NewRegistry()
+	etlReg.RegisterSource("tga", etl.NewTGASourceFactory())
+	etlReg.RegisterSource("mysql", etl.NewMySQLSourceFactory())
+	etlReg.RegisterSink("redis", etl.NewRedisSinkFactory())
+	etlReg.RegisterSink("print", etl.NewPrintSinkFactory())
+	kinds.Register(etl.NewExecutor(etlReg).Info())
 
 	localWorker := worker.NewLocalWorker(kinds)
 	sched := appscheduler.New(db.DB, kinds, localWorker)

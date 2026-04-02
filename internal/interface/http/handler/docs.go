@@ -100,6 +100,14 @@ td{padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#333}
     <a class="nav-link" href="#sched-create">创建调度</a>
     <a class="nav-link" href="#sched-trigger">手动触发</a>
   </div>
+  <div class="nav-group">
+    <div class="nav-group-title">回调</div>
+    <a class="nav-link" href="#cb-list">回调列表</a>
+    <a class="nav-link" href="#cb-create">创建回调</a>
+    <a class="nav-link" href="#cb-update">更新回调</a>
+    <a class="nav-link" href="#cb-delete">删除回调</a>
+    <a class="nav-link" href="#cb-vars">模板变量</a>
+  </div>
 </nav>
 
 <main class="main">
@@ -188,11 +196,24 @@ td{padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#333}
   <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
   <tr><td>name</td><td>string</td><td>是</td><td>任务唯一标识</td></tr>
   <tr><td>label</td><td>string</td><td>否</td><td>显示名称</td></tr>
-  <tr><td>kind</td><td>string</td><td>是</td><td>任务类型：shell / http / dag</td></tr>
+  <tr><td>kind</td><td>string</td><td>是</td><td>任务类型：shell / http / dag / etl</td></tr>
   <tr><td>payload</td><td>object</td><td>是</td><td>任务参数，结构取决于 kind</td></tr>
   <tr><td>variables</td><td>array</td><td>否</td><td>变量定义 [{"key":"DATE","default_value":"20260101"}]</td></tr>
   <tr><td>enabled</td><td>boolean</td><td>否</td><td>是否启用，默认 true</td></tr>
+  <tr><td>schedule</td><td>object</td><td>否</td><td>同时创建调度（仅创建时有效），见下方说明</td></tr>
 </table>
+
+<h3>schedule 字段（可选，创建时同时创建调度）</h3>
+<table>
+  <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+  <tr><td>name</td><td>string</td><td>是</td><td>调度名称</td></tr>
+  <tr><td>schedule_type</td><td>string</td><td>是</td><td>"cron" 或 "once"</td></tr>
+  <tr><td>cron_expr</td><td>string</td><td>cron 时</td><td>Cron 表达式</td></tr>
+  <tr><td>run_at</td><td>string</td><td>once 时</td><td>ISO 8601 时间</td></tr>
+  <tr><td>variable_overrides</td><td>array</td><td>否</td><td>变量覆盖配置</td></tr>
+  <tr><td>enabled</td><td>boolean</td><td>否</td><td>是否启用</td></tr>
+</table>
+<p>创建成功后响应会包含 <code class="inline-code">schedule_id</code> 字段。</p>
 
 <h3>Shell Payload</h3>
 <pre>{"commands": ["echo hello", "ls -la"]}</pre>
@@ -205,6 +226,7 @@ td{padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#333}
   "body": "{\"key\":\"value\"}",
   "timeout": 30
 }</pre>
+<p>HTTP 任务会自动附加 <code class="inline-code">X-Dash-Run-Id</code> 和 <code class="inline-code">X-Dash-Task-Name</code> 追踪头。</p>
 
 <h3>DAG Payload</h3>
 <pre>{
@@ -215,11 +237,60 @@ td{padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#333}
   "strategy": "fail_fast"
 }</pre>
 
-<h3>示例</h3>
+<h3>ETL Payload</h3>
+<p>从 Source 查询数据，按批次写入 Sink。连接信息在 payload 中配置，不同任务可指向不同实例。</p>
+<pre>{
+  "source": {
+    "type": "tga",
+    "base_url": "https://tga.example.com",
+    "token": "TOKEN",
+    "insecure": true,
+    "timeout": 300,
+    "sql": "SELECT uid, score FROM ..."
+  },
+  "sink": {
+    "type": "redis",
+    "addr": "redis:6379",
+    "command": "SET",
+    "key_template": "rec:{{.uid}}",
+    "value_field": "score",
+    "ttl": 86400
+  },
+  "batch_size": 1000
+}</pre>
+<p>Source 支持 <code class="inline-code">tga</code>（TGA SQL 查询）和 <code class="inline-code">mysql</code>（MySQL 查询）。Sink 支持 <code class="inline-code">redis</code>（SET/HSET/ZADD/RPUSH）和 <code class="inline-code">print</code>（输出到任务日志，调试用）。</p>
+
+<h3>MySQL Source</h3>
+<pre>{
+  "source": {
+    "type": "mysql",
+    "dsn": "user:pass@tcp(host:3306)/db?charset=utf8mb4",
+    "sql": "SELECT uid, score FROM user_scores",
+    "timeout": 300
+  },
+  "sink": {"type": "print", "format": "table"},
+  "batch_size": 500
+}</pre>
+
+<h3>Print Sink（调试）</h3>
+<p>将查询结果打印到任务输出中，<code class="inline-code">format</code> 可选 <code class="inline-code">json</code>（默认）或 <code class="inline-code">table</code>（tab 分隔表格）。</p>
+
+<h3>示例：创建任务并同时创建调度</h3>
 <pre>curl -X POST /api/v1/tasks \
   -H "Authorization: Bearer tk_xxx" \
   -H "Content-Type: application/json" \
-  -d '{"name":"hello","kind":"shell","payload":{"commands":["echo hello"]},"enabled":true}'</pre>
+  -d '{
+  "name": "daily_sync",
+  "kind": "etl",
+  "payload": {"source":{"type":"tga","base_url":"...","sql":"..."},"sink":{"type":"redis","addr":"...","command":"SET","key_template":"k:{{.id}}","value_field":"v"}},
+  "enabled": true,
+  "schedule": {
+    "name": "daily_sync_cron",
+    "schedule_type": "cron",
+    "cron_expr": "0 2 * * *",
+    "enabled": true
+  }
+}'</pre>
 
 <h2 id="task-get">获取任务</h2>
 <div class="endpoint">
@@ -319,6 +390,74 @@ td{padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#333}
   <div class="endpoint-header"><span class="badge post">POST</span> /api/v1/schedules/{id}/trigger <span class="auth-tag">需鉴权</span></div>
   <div class="endpoint-desc">立即触发一次调度执行。</div>
 </div>
+
+<!-- ====== 回调 ====== -->
+
+<h2 id="cb-list">回调列表</h2>
+<div class="endpoint">
+  <div class="endpoint-header"><span class="badge get">GET</span> /api/v1/callbacks <span class="auth-tag">需鉴权</span></div>
+  <div class="endpoint-desc">获取所有回调配置。</div>
+</div>
+
+<h2 id="cb-create">创建回调</h2>
+<div class="endpoint">
+  <div class="endpoint-header"><span class="badge post">POST</span> /api/v1/callbacks <span class="auth-tag">需鉴权</span></div>
+  <div class="endpoint-desc">创建 Webhook 回调，任务执行完成后自动触发。</div>
+</div>
+<h3>请求体</h3>
+<table>
+  <tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr>
+  <tr><td>name</td><td>string</td><td>是</td><td>回调名称</td></tr>
+  <tr><td>url</td><td>string</td><td>是</td><td>Webhook URL</td></tr>
+  <tr><td>events</td><td>array</td><td>是</td><td>触发事件：["success", "failed", "cancelled"]</td></tr>
+  <tr><td>match_mode</td><td>string</td><td>否</td><td>"all"（默认，匹配所有任务）或 "selected"</td></tr>
+  <tr><td>task_ids</td><td>array</td><td>否</td><td>match_mode=selected 时，指定任务 ID 列表</td></tr>
+  <tr><td>headers</td><td>object</td><td>否</td><td>自定义请求头</td></tr>
+  <tr><td>body_template</td><td>string</td><td>否</td><td>自定义 body（Go template），不填则发送默认 JSON</td></tr>
+  <tr><td>enabled</td><td>boolean</td><td>否</td><td>是否启用</td></tr>
+</table>
+<h3>示例</h3>
+<pre>{
+  "name": "飞书通知",
+  "url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
+  "events": ["failed"],
+  "match_mode": "all",
+  "headers": {"Content-Type": "application/json"},
+  "body_template": "{\"msg_type\":\"text\",\"content\":{\"text\":\"任务 {{.task_name}} 失败: {{.error}}\"}}",
+  "enabled": true
+}</pre>
+
+<h2 id="cb-update">更新回调</h2>
+<div class="endpoint">
+  <div class="endpoint-header"><span class="badge put">PUT</span> /api/v1/callbacks/{id} <span class="auth-tag">需鉴权</span></div>
+  <div class="endpoint-desc">更新回调配置，请求体与创建相同。</div>
+</div>
+
+<h2 id="cb-delete">删除回调</h2>
+<div class="endpoint">
+  <div class="endpoint-header"><span class="badge delete">DELETE</span> /api/v1/callbacks/{id} <span class="auth-tag">需鉴权</span></div>
+  <div class="endpoint-desc">删除回调。</div>
+</div>
+
+<h2 id="cb-vars">回调模板变量</h2>
+<div class="endpoint">
+  <div class="endpoint-header"><span class="badge get">GET</span> /api/v1/callback-vars <span class="auth-tag">需鉴权</span></div>
+  <div class="endpoint-desc">列出 body_template 中可用的内置变量。</div>
+</div>
+<h3>可用变量</h3>
+<table>
+  <tr><th>变量</th><th>说明</th><th>示例</th></tr>
+  <tr><td>{{.run_id}}</td><td>运行 ID</td><td>42</td></tr>
+  <tr><td>{{.task_id}}</td><td>任务 ID</td><td>7</td></tr>
+  <tr><td>{{.task_name}}</td><td>任务标识</td><td>daily_export</td></tr>
+  <tr><td>{{.task_label}}</td><td>任务标签</td><td>每日导出</td></tr>
+  <tr><td>{{.task_kind}}</td><td>任务类型</td><td>shell</td></tr>
+  <tr><td>{{.status}}</td><td>执行状态</td><td>success / failed / cancelled</td></tr>
+  <tr><td>{{.duration_ms}}</td><td>耗时(ms)</td><td>12345</td></tr>
+  <tr><td>{{.error}}</td><td>错误信息</td><td>exit code 1</td></tr>
+  <tr><td>{{.output}}</td><td>任务输出</td><td>done</td></tr>
+  <tr><td>{{.finished_at}}</td><td>完成时间</td><td>2026-04-01T10:00:00Z</td></tr>
+</table>
 
 </main>
 </div>

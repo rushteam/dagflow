@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { Dialog } from '@base-ui/react/dialog'
 import { Drawer } from '@base-ui/react/drawer'
 import { Input } from '@base-ui/react/input'
@@ -6,6 +6,8 @@ import { Select } from '@base-ui/react/select'
 import { Switch } from '@base-ui/react/switch'
 import { api, type Task, type TaskInput, type TaskVariable, type KindInfo, type TaskRun, type ChildRun } from '../api/client'
 import styles from './TaskPanel.module.css'
+
+const MonacoEditor = lazy(() => import('@monaco-editor/react'))
 
 interface TaskPanelProps {
   onNavigateToRunLog?: () => void
@@ -247,9 +249,15 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
     return 'fail_fast'
   })
 
+  // etl 专用状态
+  const [etlFields, setEtlFields] = useState<EtlFields>(() => {
+    if (task?.kind === 'etl') return parseEtlPayload(task.payload as Record<string, unknown>)
+    return defaultEtlFields()
+  })
+
   // 通用 fallback 状态
   const [rawPayload, setRawPayload] = useState(() => {
-    if (task && task.kind !== 'shell' && task.kind !== 'http' && task.kind !== 'dag') return JSON.stringify(task.payload, null, 2)
+    if (task && !['shell', 'http', 'dag', 'etl'].includes(task.kind)) return JSON.stringify(task.payload, null, 2)
     return '{}'
   })
   const [error, setError] = useState('')
@@ -275,9 +283,12 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
     } else if (newKind === 'dag') {
       setDagNodes([])
       setDagStrategy('fail_fast')
+    } else if (newKind === 'etl') {
+      setEtlFields(defaultEtlFields())
     } else {
       const hint = kinds.find(k => k.name === newKind)?.payload_hint
-      setRawPayload(hint ?? '{}')
+      try { setRawPayload(JSON.stringify(JSON.parse(hint ?? '{}'), null, 2)) }
+      catch { setRawPayload(hint ?? '{}') }
     }
   }
 
@@ -310,6 +321,22 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
         if (!n.task_id) { setError(`节点「${n.name}」未选择任务`); return null }
       }
       return { nodes: dagNodes, strategy: dagStrategy }
+    }
+    if (currentKind === 'etl') {
+      if (!etlFields.source.sql.trim()) { setError('SQL 查询不能为空'); return null }
+      if (etlFields.source.type === 'tga' && !etlFields.source.base_url.trim()) {
+        setError('TGA Base URL 不能为空'); return null
+      }
+      if (etlFields.source.type === 'mysql' && !etlFields.source.dsn.trim()) {
+        setError('MySQL DSN 不能为空'); return null
+      }
+      if (etlFields.sink.type === 'redis' && !etlFields.sink.addr.trim()) {
+        setError('Redis 地址不能为空'); return null
+      }
+      if (etlFields.sink.type === 'redis' && !etlFields.sink.key_template.trim()) {
+        setError('Redis Key 模板不能为空'); return null
+      }
+      return buildEtlPayload(etlFields)
     }
     try { return JSON.parse(rawPayload) } catch {
       setError('Payload JSON 格式无效'); return null
@@ -438,13 +465,38 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
                     onNodesChange={setDagNodes}
                     onStrategyChange={setDagStrategy}
                   />
+                ) : currentKind === 'etl' ? (
+                  <EtlPayloadForm fields={etlFields} onChange={setEtlFields} />
                 ) : (
-                  <label className={styles.formLabel}>
+                  <div className={styles.formLabel}>
                     Payload（JSON）
-                    <textarea className={styles.formTextarea} value={rawPayload}
-                      onChange={e => setRawPayload(e.target.value)} rows={5} />
+                    <div className={styles.monacoWrap}>
+                      <Suspense fallback={
+                        <textarea className={styles.formTextarea} value={rawPayload}
+                          onChange={e => setRawPayload(e.target.value)} rows={10} />
+                      }>
+                        <MonacoEditor
+                          height={280}
+                          language="json"
+                          theme="vs-dark"
+                          value={rawPayload}
+                          onChange={(v) => setRawPayload(v ?? '{}')}
+                          options={{
+                            minimap: { enabled: false },
+                            fontSize: 13,
+                            lineNumbers: 'on',
+                            scrollBeyondLastLine: false,
+                            wordWrap: 'on',
+                            tabSize: 2,
+                            formatOnPaste: true,
+                            automaticLayout: true,
+                            padding: { top: 8, bottom: 8 },
+                          }}
+                        />
+                      </Suspense>
+                    </div>
                     {kindHint && <span className={styles.hint}>示例：{kindHint}</span>}
-                  </label>
+                  </div>
                 )}
 
                 <VariablesEditor
@@ -1335,6 +1387,444 @@ function HttpPayloadForm({ fields, onChange }: {
         <textarea className={styles.formTextarea} value={fields.body}
           onChange={e => onChange({ body: e.target.value })} rows={4}
           placeholder={'{"key": "value"}'} />
+      </label>
+    </div>
+  )
+}
+
+// ---- ETL Payload Form ----
+
+interface EtlSourceFields {
+  type: string
+  base_url: string
+  token: string
+  insecure: boolean
+  timeout: number
+  retries: number
+  dsn: string
+  sql: string
+}
+
+interface EtlSinkFields {
+  type: string
+  addr: string
+  password: string
+  db: number
+  command: string
+  key_template: string
+  field_template: string
+  value_template: string
+  value_field: string
+  score_field: string
+  member_field: string
+  ttl: number
+  format: string
+}
+
+interface EtlFields {
+  source: EtlSourceFields
+  sink: EtlSinkFields
+  batch_size: number
+}
+
+function defaultEtlFields(): EtlFields {
+  return {
+    source: {
+      type: 'tga', base_url: '', token: '', insecure: false,
+      timeout: 300, retries: 3, dsn: '', sql: '',
+    },
+    sink: {
+      type: 'redis', addr: '', password: '', db: 0,
+      command: 'SET', key_template: '', field_template: '',
+      value_template: '', value_field: '', score_field: '',
+      member_field: '', ttl: 0, format: 'json',
+    },
+    batch_size: 500,
+  }
+}
+
+function parseEtlPayload(payload: Record<string, unknown>): EtlFields {
+  const src = (payload.source ?? {}) as Record<string, unknown>
+  const snk = (payload.sink ?? {}) as Record<string, unknown>
+  const base = defaultEtlFields()
+  return {
+    source: {
+      ...base.source,
+      type: (src.type as string) || 'tga',
+      base_url: (src.base_url as string) || '',
+      token: (src.token as string) || '',
+      insecure: !!src.insecure,
+      timeout: (src.timeout as number) || 300,
+      retries: (src.retries as number) || 3,
+      dsn: (src.dsn as string) || '',
+      sql: (src.sql as string) || '',
+    },
+    sink: {
+      ...base.sink,
+      type: (snk.type as string) || 'redis',
+      addr: (snk.addr as string) || '',
+      password: (snk.password as string) || '',
+      db: (snk.db as number) || 0,
+      command: (snk.command as string) || 'SET',
+      key_template: (snk.key_template as string) || '',
+      field_template: (snk.field_template as string) || '',
+      value_template: (snk.value_template as string) || '',
+      value_field: (snk.value_field as string) || '',
+      score_field: (snk.score_field as string) || '',
+      member_field: (snk.member_field as string) || '',
+      ttl: (snk.ttl as number) || 0,
+      format: (snk.format as string) || 'json',
+    },
+    batch_size: (payload.batch_size as number) || 500,
+  }
+}
+
+function buildEtlPayload(fields: EtlFields): Record<string, unknown> {
+  const source: Record<string, unknown> = { type: fields.source.type, sql: fields.source.sql }
+  if (fields.source.type === 'tga') {
+    source.base_url = fields.source.base_url
+    if (fields.source.token) source.token = fields.source.token
+    if (fields.source.insecure) source.insecure = true
+    if (fields.source.timeout) source.timeout = fields.source.timeout
+    if (fields.source.retries) source.retries = fields.source.retries
+  } else if (fields.source.type === 'mysql') {
+    source.dsn = fields.source.dsn
+    if (fields.source.timeout) source.timeout = fields.source.timeout
+  }
+
+  const sink: Record<string, unknown> = { type: fields.sink.type }
+  if (fields.sink.type === 'redis') {
+    sink.addr = fields.sink.addr
+    if (fields.sink.password) sink.password = fields.sink.password
+    if (fields.sink.db) sink.db = fields.sink.db
+    sink.command = fields.sink.command
+    sink.key_template = fields.sink.key_template
+    const cmd = fields.sink.command
+    if (cmd === 'HSET') {
+      if (fields.sink.field_template) sink.field_template = fields.sink.field_template
+    }
+    if (cmd === 'ZADD') {
+      if (fields.sink.score_field) sink.score_field = fields.sink.score_field
+      if (fields.sink.member_field) sink.member_field = fields.sink.member_field
+    }
+    if (['SET', 'RPUSH'].includes(cmd)) {
+      if (fields.sink.value_field) sink.value_field = fields.sink.value_field
+    }
+    if (['SET', 'HSET', 'RPUSH'].includes(cmd) && fields.sink.value_template) {
+      sink.value_template = fields.sink.value_template
+    }
+    if (fields.sink.ttl) sink.ttl = fields.sink.ttl
+  } else if (fields.sink.type === 'print') {
+    sink.format = fields.sink.format
+  }
+
+  return { source, sink, batch_size: fields.batch_size }
+}
+
+const REDIS_COMMANDS = ['SET', 'HSET', 'ZADD', 'RPUSH'] as const
+const SINK_TYPES = [
+  { value: 'redis', label: 'Redis' },
+  { value: 'print', label: 'Print（输出到日志）' },
+] as const
+const SOURCE_TYPES = [
+  { value: 'tga', label: 'TGA' },
+  { value: 'mysql', label: 'MySQL' },
+] as const
+
+function EtlPayloadForm({ fields, onChange }: {
+  fields: EtlFields
+  onChange: (fields: EtlFields) => void
+}) {
+  const setSource = (patch: Partial<EtlSourceFields>) =>
+    onChange({ ...fields, source: { ...fields.source, ...patch } })
+  const setSink = (patch: Partial<EtlSinkFields>) =>
+    onChange({ ...fields, sink: { ...fields.sink, ...patch } })
+
+  const cmd = fields.sink.command
+
+  return (
+    <div className={styles.etlForm}>
+      <fieldset className={styles.etlSection}>
+        <legend className={styles.etlLegend}>数据源（Source）</legend>
+
+        <div className={styles.formLabel}>
+          类型
+          <Select.Root value={fields.source.type} onValueChange={v => { if (v) setSource({ type: v }) }}>
+            <Select.Trigger className={styles.selectTrigger}>
+              <Select.Value />
+              <Select.Icon className={styles.selectIcon}><ChevronIcon /></Select.Icon>
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Positioner className={styles.selectPositioner} sideOffset={4}>
+                <Select.Popup className={styles.selectPopup}>
+                  <Select.List>
+                    {SOURCE_TYPES.map(t => (
+                      <Select.Item key={t.value} value={t.value} className={styles.selectItem}>
+                        <Select.ItemText>{t.label}</Select.ItemText>
+                        <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
+                      </Select.Item>
+                    ))}
+                  </Select.List>
+                </Select.Popup>
+              </Select.Positioner>
+            </Select.Portal>
+          </Select.Root>
+        </div>
+
+        {fields.source.type === 'tga' && (
+          <>
+            <label className={styles.formLabel}>
+              Base URL
+              <Input className={styles.formInput} value={fields.source.base_url}
+                onChange={e => setSource({ base_url: e.target.value })}
+                placeholder="https://tga.example.com" />
+            </label>
+            <label className={styles.formLabel}>
+              Token
+              <Input className={styles.formInput} value={fields.source.token}
+                onChange={e => setSource({ token: e.target.value })}
+                placeholder="认证 Token（可选）" />
+            </label>
+            <div className={styles.etlRow}>
+              <label className={styles.formLabel} style={{ flex: 1 }}>
+                超时（秒）
+                <Input className={styles.formInput} type="number"
+                  value={String(fields.source.timeout)}
+                  onChange={e => setSource({ timeout: parseInt(e.target.value) || 300 })} />
+              </label>
+              <label className={styles.formLabel} style={{ flex: 1 }}>
+                重试次数
+                <Input className={styles.formInput} type="number"
+                  value={String(fields.source.retries)}
+                  onChange={e => setSource({ retries: parseInt(e.target.value) || 3 })} />
+              </label>
+            </div>
+            <div className={styles.formSwitchRow}>
+              <span className={styles.formSwitchLabel}>跳过 TLS 验证</span>
+              <Switch.Root className={styles.switch} checked={fields.source.insecure}
+                onCheckedChange={c => setSource({ insecure: !!c })}>
+                <Switch.Thumb className={styles.switchThumb} />
+              </Switch.Root>
+            </div>
+          </>
+        )}
+
+        {fields.source.type === 'mysql' && (
+          <>
+            <label className={styles.formLabel}>
+              DSN
+              <Input className={styles.formInput} value={fields.source.dsn}
+                onChange={e => setSource({ dsn: e.target.value })}
+                placeholder="user:pass@tcp(host:3306)/db?charset=utf8mb4" />
+            </label>
+            <label className={styles.formLabel}>
+              超时（秒）
+              <Input className={styles.formInput} type="number"
+                value={String(fields.source.timeout)}
+                onChange={e => setSource({ timeout: parseInt(e.target.value) || 300 })} />
+            </label>
+          </>
+        )}
+
+        <div className={styles.formLabel}>
+          SQL 查询
+          <div className={styles.monacoWrap}>
+            <Suspense fallback={
+              <textarea className={styles.formTextarea} value={fields.source.sql}
+                onChange={e => setSource({ sql: e.target.value })} rows={12} />
+            }>
+              <MonacoEditor
+                height={300}
+                language="sql"
+                theme="vs-dark"
+                value={fields.source.sql}
+                onChange={v => setSource({ sql: v ?? '' })}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 13,
+                  lineNumbers: 'on',
+                  scrollBeyondLastLine: false,
+                  wordWrap: 'on',
+                  tabSize: 2,
+                  automaticLayout: true,
+                  padding: { top: 8, bottom: 8 },
+                }}
+              />
+            </Suspense>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset className={styles.etlSection}>
+        <legend className={styles.etlLegend}>目标（Sink）</legend>
+
+        <div className={styles.formLabel}>
+          类型
+          <Select.Root value={fields.sink.type} onValueChange={v => { if (v) setSink({ type: v }) }}>
+            <Select.Trigger className={styles.selectTrigger}>
+              <Select.Value />
+              <Select.Icon className={styles.selectIcon}><ChevronIcon /></Select.Icon>
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Positioner className={styles.selectPositioner} sideOffset={4}>
+                <Select.Popup className={styles.selectPopup}>
+                  <Select.List>
+                    {SINK_TYPES.map(t => (
+                      <Select.Item key={t.value} value={t.value} className={styles.selectItem}>
+                        <Select.ItemText>{t.label}</Select.ItemText>
+                        <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
+                      </Select.Item>
+                    ))}
+                  </Select.List>
+                </Select.Popup>
+              </Select.Positioner>
+            </Select.Portal>
+          </Select.Root>
+        </div>
+
+        {fields.sink.type === 'redis' && (
+          <>
+            <div className={styles.etlRow}>
+              <label className={styles.formLabel} style={{ flex: 2 }}>
+                Redis 地址
+                <Input className={styles.formInput} value={fields.sink.addr}
+                  onChange={e => setSink({ addr: e.target.value })}
+                  placeholder="localhost:6379" />
+              </label>
+              <label className={styles.formLabel} style={{ flex: 1 }}>
+                DB
+                <Input className={styles.formInput} type="number" min={0}
+                  value={String(fields.sink.db)}
+                  onChange={e => setSink({ db: parseInt(e.target.value) || 0 })} />
+              </label>
+            </div>
+            <label className={styles.formLabel}>
+              密码
+              <Input className={styles.formInput} type="password" value={fields.sink.password}
+                onChange={e => setSink({ password: e.target.value })}
+                placeholder="（可选）" />
+            </label>
+
+            <div className={styles.etlRow}>
+              <div className={styles.formLabel} style={{ flex: 1 }}>
+                命令
+                <Select.Root value={cmd} onValueChange={v => { if (v) setSink({ command: v }) }}>
+                  <Select.Trigger className={styles.selectTrigger}>
+                    <Select.Value />
+                    <Select.Icon className={styles.selectIcon}><ChevronIcon /></Select.Icon>
+                  </Select.Trigger>
+                  <Select.Portal>
+                    <Select.Positioner className={styles.selectPositioner} sideOffset={4}>
+                      <Select.Popup className={styles.selectPopup}>
+                        <Select.List>
+                          {REDIS_COMMANDS.map(c => (
+                            <Select.Item key={c} value={c} className={styles.selectItem}>
+                              <Select.ItemText>{c}</Select.ItemText>
+                              <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
+                            </Select.Item>
+                          ))}
+                        </Select.List>
+                      </Select.Popup>
+                    </Select.Positioner>
+                  </Select.Portal>
+                </Select.Root>
+              </div>
+              <label className={styles.formLabel} style={{ flex: 1 }}>
+                TTL（秒，0=不过期）
+                <Input className={styles.formInput} type="number" min={0}
+                  value={String(fields.sink.ttl)}
+                  onChange={e => setSink({ ttl: parseInt(e.target.value) || 0 })} />
+              </label>
+            </div>
+
+            <label className={styles.formLabel}>
+              Key 模板
+              <Input className={styles.formInput} value={fields.sink.key_template}
+                onChange={e => setSink({ key_template: e.target.value })}
+                placeholder={'rec:{{.project_id}}'} />
+              <span className={styles.commandsHelp}>Go template 语法，{'{{.字段名}}'} 引用行数据</span>
+            </label>
+
+            {cmd === 'HSET' && (
+              <label className={styles.formLabel}>
+                Field 模板
+                <Input className={styles.formInput} value={fields.sink.field_template}
+                  onChange={e => setSink({ field_template: e.target.value })}
+                  placeholder={'{{.field_name}}'} />
+              </label>
+            )}
+
+            {cmd === 'ZADD' && (
+              <div className={styles.etlRow}>
+                <label className={styles.formLabel} style={{ flex: 1 }}>
+                  Score 字段
+                  <Input className={styles.formInput} value={fields.sink.score_field}
+                    onChange={e => setSink({ score_field: e.target.value })}
+                    placeholder="score" />
+                </label>
+                <label className={styles.formLabel} style={{ flex: 1 }}>
+                  Member 字段
+                  <Input className={styles.formInput} value={fields.sink.member_field}
+                    onChange={e => setSink({ member_field: e.target.value })}
+                    placeholder="uid" />
+                </label>
+              </div>
+            )}
+
+            {['SET', 'HSET', 'RPUSH'].includes(cmd) && (
+              <div className={styles.etlRow}>
+                <label className={styles.formLabel} style={{ flex: 1 }}>
+                  Value 字段
+                  <Input className={styles.formInput} value={fields.sink.value_field}
+                    onChange={e => setSink({ value_field: e.target.value })}
+                    placeholder="取某字段值" />
+                </label>
+                <label className={styles.formLabel} style={{ flex: 1 }}>
+                  Value 模板
+                  <Input className={styles.formInput} value={fields.sink.value_template}
+                    onChange={e => setSink({ value_template: e.target.value })}
+                    placeholder={'{{.field}}'} />
+                  <span className={styles.commandsHelp}>模板优先于字段</span>
+                </label>
+              </div>
+            )}
+          </>
+        )}
+
+        {fields.sink.type === 'print' && (
+          <div className={styles.formLabel}>
+            输出格式
+            <Select.Root value={fields.sink.format} onValueChange={v => { if (v) setSink({ format: v }) }}>
+              <Select.Trigger className={styles.selectTrigger}>
+                <Select.Value />
+                <Select.Icon className={styles.selectIcon}><ChevronIcon /></Select.Icon>
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Positioner className={styles.selectPositioner} sideOffset={4}>
+                  <Select.Popup className={styles.selectPopup}>
+                    <Select.List>
+                      <Select.Item value="json" className={styles.selectItem}>
+                        <Select.ItemText>JSON</Select.ItemText>
+                        <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
+                      </Select.Item>
+                      <Select.Item value="table" className={styles.selectItem}>
+                        <Select.ItemText>Table（表格）</Select.ItemText>
+                        <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
+                      </Select.Item>
+                    </Select.List>
+                  </Select.Popup>
+                </Select.Positioner>
+              </Select.Portal>
+            </Select.Root>
+          </div>
+        )}
+      </fieldset>
+
+      <label className={styles.formLabel}>
+        批次大小
+        <Input className={styles.formInput} type="number" min={1}
+          value={String(fields.batch_size)}
+          onChange={e => onChange({ ...fields, batch_size: parseInt(e.target.value) || 500 })} />
       </label>
     </div>
   )
