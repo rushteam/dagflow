@@ -241,6 +241,23 @@ export interface Task {
   created_by?: number
   created_at: string
   updated_at: string
+  /** 仅 POST /tasks 创建任务且同时创建调度时返回 */
+  schedule_id?: number
+}
+
+export interface VarOverride {
+  key: string
+  value: string
+}
+
+/** 与 POST /tasks 的 `schedule` 字段一致；name 留空或不传则不创建调度 */
+export interface TaskScheduleInput {
+  name: string
+  schedule_type: 'cron' | 'once'
+  cron_expr?: string
+  run_at?: string
+  variable_overrides?: VarOverride[]
+  enabled?: boolean
 }
 
 export interface TaskInput {
@@ -250,11 +267,7 @@ export interface TaskInput {
   payload: Record<string, unknown>
   variables: TaskVariable[]
   enabled: boolean
-}
-
-export interface VarOverride {
-  key: string
-  value: string
+  schedule?: TaskScheduleInput
 }
 
 export interface Schedule {

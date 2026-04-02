@@ -51,6 +51,25 @@ func (c *OutputCollector) String() string {
 	return c.buf.String()
 }
 
+// RunMeta 通过 context 传递给 executor 的运行元数据。
+type RunMeta struct {
+	RunID    int64
+	TaskName string
+}
+
+type runMetaCtxKey struct{}
+
+// WithRunMeta 将运行元数据写入 context。
+func WithRunMeta(ctx context.Context, m RunMeta) context.Context {
+	return context.WithValue(ctx, runMetaCtxKey{}, m)
+}
+
+// GetRunMeta 从 context 中取回运行元数据；不存在时返回零值。
+func GetRunMeta(ctx context.Context) (RunMeta, bool) {
+	m, ok := ctx.Value(runMetaCtxKey{}).(RunMeta)
+	return m, ok
+}
+
 type outputCtxKey struct{}
 
 // WithOutput 创建带 OutputCollector 的 context。

@@ -65,6 +65,10 @@ func httpFn(ctx context.Context, payload json.RawMessage) error {
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
+	if meta, ok := GetRunMeta(ctx); ok {
+		req.Header.Set("X-Dash-Run-Id", fmt.Sprintf("%d", meta.RunID))
+		req.Header.Set("X-Dash-Task-Name", meta.TaskName)
+	}
 
 	slog.InfoContext(ctx, "发送 HTTP 请求", "method", req.Method, "url", url)
 	AppendOutput(ctx, fmt.Sprintf("%s %s\n", req.Method, url))

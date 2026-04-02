@@ -31,6 +31,10 @@ func (w *LocalWorker) Execute(ctx context.Context, req RunRequest) RunResult {
 	start := time.Now()
 
 	execCtx, outputCollector := executor.WithOutput(ctx)
+	execCtx = executor.WithRunMeta(execCtx, executor.RunMeta{
+		RunID:    req.RunID,
+		TaskName: req.TaskName,
+	})
 	taskErr := kind.Fn(execCtx, req.Payload)
 
 	elapsed := time.Since(start)

@@ -3,6 +3,7 @@ package handler
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -52,6 +53,47 @@ type scheduleRequest struct {
 	RunAt             string          `json:"run_at"`
 	VariableOverrides json.RawMessage `json:"variable_overrides"`
 	Enabled           bool            `json:"enabled"`
+}
+
+// scheduleCreateParamsFromRequest 校验并组装创建调度参数（不校验 task 是否存在）。
+func scheduleCreateParamsFromRequest(req scheduleRequest, sch *scheduler.Scheduler) (gen.CreateScheduleParams, error) {
+	if req.Name == "" {
+		return gen.CreateScheduleParams{}, fmt.Errorf("name 不能为空")
+	}
+	if req.ScheduleType != "cron" && req.ScheduleType != "once" {
+		return gen.CreateScheduleParams{}, fmt.Errorf("schedule_type 仅支持 cron 或 once")
+	}
+	overrides := req.VariableOverrides
+	if len(overrides) == 0 {
+		overrides = json.RawMessage(`[]`)
+	}
+	params := gen.CreateScheduleParams{
+		Name:              req.Name,
+		TaskID:            req.TaskID,
+		ScheduleType:      req.ScheduleType,
+		VariableOverrides: overrides,
+		Enabled:           req.Enabled,
+	}
+	if req.ScheduleType == "cron" {
+		if req.CronExpr == "" {
+			return gen.CreateScheduleParams{}, fmt.Errorf("cron 类型须提供 cron_expr")
+		}
+		if err := sch.ValidateCronExpr(req.CronExpr); err != nil {
+			return gen.CreateScheduleParams{}, fmt.Errorf("cron 表达式无效: %w", err)
+		}
+		params.CronExpr = sql.NullString{String: req.CronExpr, Valid: true}
+	} else {
+		if req.RunAt == "" {
+			return gen.CreateScheduleParams{}, fmt.Errorf("once 类型须提供 run_at")
+		}
+		t, err := time.Parse(time.RFC3339, req.RunAt)
+		if err != nil {
+			return gen.CreateScheduleParams{}, fmt.Errorf("run_at 格式无效（需 RFC3339）")
+		}
+		params.RunAt = sql.NullTime{Time: t, Valid: true}
+		params.NextRunAt = sql.NullTime{Time: t, Valid: true}
+	}
+	return params, nil
 }
 
 type scheduleResponse struct {
@@ -154,46 +196,10 @@ func (h *ScheduleHandler) createSchedule(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if req.ScheduleType != "cron" && req.ScheduleType != "once" {
-		infrahttp.Error(w, http.StatusBadRequest, "schedule_type 仅支持 cron 或 once")
+	params, err := scheduleCreateParamsFromRequest(req, h.scheduler)
+	if err != nil {
+		infrahttp.Error(w, http.StatusBadRequest, err.Error())
 		return
-	}
-
-	overrides := req.VariableOverrides
-	if len(overrides) == 0 {
-		overrides = json.RawMessage(`[]`)
-	}
-
-	params := gen.CreateScheduleParams{
-		Name:              req.Name,
-		TaskID:            req.TaskID,
-		ScheduleType:      req.ScheduleType,
-		VariableOverrides: overrides,
-		Enabled:           req.Enabled,
-	}
-
-	if req.ScheduleType == "cron" {
-		if req.CronExpr == "" {
-			infrahttp.Error(w, http.StatusBadRequest, "cron 类型须提供 cron_expr")
-			return
-		}
-		if err := h.scheduler.ValidateCronExpr(req.CronExpr); err != nil {
-			infrahttp.Error(w, http.StatusBadRequest, "cron 表达式无效: "+err.Error())
-			return
-		}
-		params.CronExpr = sql.NullString{String: req.CronExpr, Valid: true}
-	} else {
-		if req.RunAt == "" {
-			infrahttp.Error(w, http.StatusBadRequest, "once 类型须提供 run_at")
-			return
-		}
-		t, err := time.Parse(time.RFC3339, req.RunAt)
-		if err != nil {
-			infrahttp.Error(w, http.StatusBadRequest, "run_at 格式无效（需 RFC3339）")
-			return
-		}
-		params.RunAt = sql.NullTime{Time: t, Valid: true}
-		params.NextRunAt = sql.NullTime{Time: t, Valid: true}
 	}
 
 	userID, _ := auth.UserIDFromContext(r.Context())

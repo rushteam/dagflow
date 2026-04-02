@@ -255,6 +255,12 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  const [schName, setSchName] = useState('')
+  const [schType, setSchType] = useState<'cron' | 'once'>('cron')
+  const [schCron, setSchCron] = useState('')
+  const [schRunAt, setSchRunAt] = useState('')
+  const [schEnabled, setSchEnabled] = useState(true)
+
   const set = (patch: Partial<TaskInput>) => setForm(prev => ({ ...prev, ...patch }))
 
   const currentKind = form.kind
@@ -317,14 +323,37 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
     const payload = buildPayload()
     if (!payload) return
 
-    const data: TaskInput = { ...form, payload }
+    const base: TaskInput = { ...form, payload }
+    let createBody: TaskInput = base
+    if (!isEdit) {
+      const trimmedSch = schName.trim()
+      if (trimmedSch) {
+        if (schType === 'cron') {
+          if (!schCron.trim()) { setError('请填写 cron 表达式'); return }
+        } else {
+          if (!schRunAt.trim()) { setError('请选择一次性运行时间'); return }
+        }
+        const runAt = schType === 'once' ? new Date(schRunAt).toISOString() : undefined
+        createBody = {
+          ...base,
+          schedule: {
+            name: trimmedSch,
+            schedule_type: schType,
+            cron_expr: schType === 'cron' ? schCron.trim() : undefined,
+            run_at: runAt,
+            variable_overrides: [],
+            enabled: schEnabled,
+          },
+        }
+      }
+    }
 
     setSubmitting(true)
     try {
       if (isEdit && task) {
-        await api.updateTask(task.id, data)
+        await api.updateTask(task.id, base)
       } else {
-        await api.createTask(data)
+        await api.createTask(createBody)
       }
       onSaved()
     } catch (err) {
@@ -422,6 +451,79 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
                   variables={form.variables}
                   onChange={(variables) => set({ variables })}
                 />
+
+                {!isEdit && (
+                  <div className={styles.formLabel}>
+                    <span className={styles.formSwitchLabel}>可选：同时创建调度</span>
+                    <span className={styles.hint}>填写调度名称则创建；名称留空则不创建。</span>
+                    <Input
+                      className={styles.formInput}
+                      value={schName}
+                      onChange={(e) => setSchName(e.target.value)}
+                      placeholder="调度名称（留空不创建）"
+                    />
+                    {schName.trim() !== '' && (
+                      <>
+                        <div className={styles.formLabel} style={{ marginTop: 8 }}>
+                          调度类型
+                          <Select.Root value={schType} onValueChange={(v) => setSchType(v as 'cron' | 'once')}>
+                            <Select.Trigger className={styles.selectTrigger}>
+                              <Select.Value />
+                              <Select.Icon className={styles.selectIcon}><ChevronIcon /></Select.Icon>
+                            </Select.Trigger>
+                            <Select.Portal>
+                              <Select.Positioner className={styles.selectPositioner} sideOffset={4}>
+                                <Select.Popup className={styles.selectPopup}>
+                                  <Select.List>
+                                    <Select.Item value="cron" className={styles.selectItem}>
+                                      <Select.ItemText>cron 周期</Select.ItemText>
+                                      <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
+                                    </Select.Item>
+                                    <Select.Item value="once" className={styles.selectItem}>
+                                      <Select.ItemText>一次性（once）</Select.ItemText>
+                                      <Select.ItemIndicator className={styles.selectIndicator}><CheckIcon /></Select.ItemIndicator>
+                                    </Select.Item>
+                                  </Select.List>
+                                </Select.Popup>
+                              </Select.Positioner>
+                            </Select.Portal>
+                          </Select.Root>
+                        </div>
+                        {schType === 'cron' ? (
+                          <label className={styles.formLabel}>
+                            Cron 表达式
+                            <Input
+                              className={styles.formInput}
+                              value={schCron}
+                              onChange={(e) => setSchCron(e.target.value)}
+                              placeholder="0 * * * *"
+                            />
+                          </label>
+                        ) : (
+                          <label className={styles.formLabel}>
+                            运行时间（本地）
+                            <Input
+                              className={styles.formInput}
+                              type="datetime-local"
+                              value={schRunAt}
+                              onChange={(e) => setSchRunAt(e.target.value)}
+                            />
+                          </label>
+                        )}
+                        <div className={styles.formSwitchRow}>
+                          <span className={styles.formSwitchLabel}>调度启用</span>
+                          <Switch.Root
+                            className={styles.switch}
+                            checked={schEnabled}
+                            onCheckedChange={(c) => setSchEnabled(!!c)}
+                          >
+                            <Switch.Thumb className={styles.switchThumb} />
+                          </Switch.Root>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 <div className={styles.formSwitchRow}>
                   <span className={styles.formSwitchLabel}>启用</span>

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -75,26 +76,49 @@ func (h *TaskHandler) listKinds(w http.ResponseWriter, _ *http.Request) {
 
 // ---- tasks CRUD ----
 
+type taskSchedulePayload struct {
+	Name              string          `json:"name"`
+	ScheduleType      string          `json:"schedule_type"`
+	CronExpr          string          `json:"cron_expr"`
+	RunAt             string          `json:"run_at"`
+	VariableOverrides json.RawMessage `json:"variable_overrides"`
+	Enabled           bool            `json:"enabled"`
+}
+
 type taskRequest struct {
-	Name      string          `json:"name"`
-	Label     string          `json:"label"`
-	Kind      string          `json:"kind"`
-	Payload   json.RawMessage `json:"payload"`
-	Variables json.RawMessage `json:"variables"`
-	Enabled   bool            `json:"enabled"`
+	Name      string               `json:"name"`
+	Label     string               `json:"label"`
+	Kind      string               `json:"kind"`
+	Payload   json.RawMessage      `json:"payload"`
+	Variables json.RawMessage      `json:"variables"`
+	Enabled   bool                 `json:"enabled"`
+	Schedule  *taskSchedulePayload `json:"schedule,omitempty"`
 }
 
 type taskResponse struct {
-	ID        int64           `json:"id"`
-	Name      string          `json:"name"`
-	Label     string          `json:"label"`
-	Kind      string          `json:"kind"`
-	Payload   json.RawMessage `json:"payload"`
-	Variables json.RawMessage `json:"variables"`
-	Enabled   bool            `json:"enabled"`
-	CreatedBy *int64          `json:"created_by,omitempty"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID         int64           `json:"id"`
+	Name       string          `json:"name"`
+	Label      string          `json:"label"`
+	Kind       string          `json:"kind"`
+	Payload    json.RawMessage `json:"payload"`
+	Variables  json.RawMessage `json:"variables"`
+	Enabled    bool            `json:"enabled"`
+	CreatedBy  *int64          `json:"created_by,omitempty"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+	ScheduleID *int64          `json:"schedule_id,omitempty"`
+}
+
+func taskScheduleToScheduleRequest(p *taskSchedulePayload, taskID int64) scheduleRequest {
+	return scheduleRequest{
+		Name:              strings.TrimSpace(p.Name),
+		TaskID:            taskID,
+		ScheduleType:      strings.TrimSpace(p.ScheduleType),
+		CronExpr:          strings.TrimSpace(p.CronExpr),
+		RunAt:             strings.TrimSpace(p.RunAt),
+		VariableOverrides: p.VariableOverrides,
+		Enabled:           p.Enabled,
+	}
 }
 
 func toTaskResponse(t gen.Task) taskResponse {
@@ -176,6 +200,14 @@ func (h *TaskHandler) createTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.Schedule != nil && strings.TrimSpace(req.Schedule.Name) != "" {
+		sr := taskScheduleToScheduleRequest(req.Schedule, 0)
+		if _, err := scheduleCreateParamsFromRequest(sr, h.scheduler); err != nil {
+			infrahttp.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
 	variables := req.Variables
 	if len(variables) == 0 {
 		variables = json.RawMessage(`[]`)
@@ -203,7 +235,35 @@ func (h *TaskHandler) createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	infrahttp.JSON(w, http.StatusCreated, toTaskResponse(task))
+	ctx := r.Context()
+	resp := toTaskResponse(task)
+	if req.Schedule != nil && strings.TrimSpace(req.Schedule.Name) != "" {
+		sr := taskScheduleToScheduleRequest(req.Schedule, task.ID)
+		params, err := scheduleCreateParamsFromRequest(sr, h.scheduler)
+		if err != nil {
+			slog.ErrorContext(ctx, "组装调度参数失败", "error", err)
+			infrahttp.Error(w, http.StatusInternalServerError, "创建调度失败")
+			return
+		}
+		if userID > 0 {
+			params.CreatedBy = sql.NullInt64{Int64: userID, Valid: true}
+		}
+		sch, err := h.queries.CreateSchedule(ctx, params)
+		if err != nil {
+			slog.ErrorContext(ctx, "创建调度失败", "error", err)
+			infrahttp.Error(w, http.StatusInternalServerError, "任务已创建，但调度创建失败")
+			return
+		}
+		if sch.Enabled {
+			if err := h.scheduler.AddSchedule(ctx, sch); err != nil {
+				slog.ErrorContext(ctx, "加入调度引擎失败", "id", sch.ID, "error", err)
+			}
+		}
+		sid := sch.ID
+		resp.ScheduleID = &sid
+	}
+
+	infrahttp.JSON(w, http.StatusCreated, resp)
 }
 
 func (h *TaskHandler) updateTask(w http.ResponseWriter, r *http.Request) {

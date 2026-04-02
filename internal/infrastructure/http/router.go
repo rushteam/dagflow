@@ -20,12 +20,17 @@ func NewRouter() *chi.Mux {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
+	r.MethodFunc(http.MethodGet, "/health", healthHandler)
+	r.MethodFunc(http.MethodHead, "/health", healthHandler)
 
 	return r
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	if r.Method != http.MethodHead {
+		_, _ = w.Write([]byte("OK"))
+	}
 }
 
 // ServeSPA 将前端构建产物以 SPA 模式挂载到路由器。
@@ -33,7 +38,7 @@ func NewRouter() *chi.Mux {
 func ServeSPA(r chi.Router, staticFS fs.FS) {
 	fileServer := http.FileServer(http.FS(staticFS))
 
-	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+	spaHandler := func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		if path == "" {
 			path = "index.html"
@@ -49,7 +54,9 @@ func ServeSPA(r chi.Router, staticFS fs.FS) {
 		f.Close()
 
 		fileServer.ServeHTTP(w, r)
-	})
+	}
+	r.MethodFunc(http.MethodGet, "/*", spaHandler)
+	r.MethodFunc(http.MethodHead, "/*", spaHandler)
 
 	slog.Info("SPA 静态文件服务已挂载")
 }

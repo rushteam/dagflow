@@ -34,5 +34,8 @@ WORKDIR /app
 COPY --from=backend-builder /dash .
 COPY config.yaml .
 
+ARG GIT_COMMIT=unknown
+RUN echo "${GIT_COMMIT}" > .commit
+
 EXPOSE 8080
 ENTRYPOINT ["/app/dash"]
