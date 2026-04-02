@@ -9,6 +9,9 @@ SELECT * FROM schedules WHERE id = $1;
 -- name: ListSchedules :many
 SELECT * FROM schedules ORDER BY created_at DESC;
 
+-- name: ListSchedulesByTaskID :many
+SELECT * FROM schedules WHERE task_id = $1 ORDER BY created_at DESC;
+
 -- name: GetEnabledSchedules :many
 SELECT * FROM schedules WHERE enabled = true ORDER BY id;
 

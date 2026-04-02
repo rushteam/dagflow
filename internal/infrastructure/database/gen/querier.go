@@ -26,9 +26,9 @@ type Querier interface {
 	CreateAPIToken(ctx context.Context, arg CreateAPITokenParams) (ApiToken, error)
 	//CreateCallback
 	//
-	//  INSERT INTO callbacks (name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by)
+	//  INSERT INTO callbacks (name, url, events, headers, body_template, match_mode, match_rules, enabled, created_by)
 	//  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	//  RETURNING id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at
+	//  RETURNING id, name, url, events, headers, body_template, match_mode, match_rules, enabled, created_by, created_at, updated_at
 	CreateCallback(ctx context.Context, arg CreateCallbackParams) (Callback, error)
 	//CreateSchedule
 	//
@@ -84,7 +84,7 @@ type Querier interface {
 	GetAPITokenByHash(ctx context.Context, tokenHash string) (ApiToken, error)
 	//GetCallbackByID
 	//
-	//  SELECT id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks WHERE id = $1
+	//  SELECT id, name, url, events, headers, body_template, match_mode, match_rules, enabled, created_by, created_at, updated_at FROM callbacks WHERE id = $1
 	GetCallbackByID(ctx context.Context, id int64) (Callback, error)
 	//GetEnabledSchedules
 	//
@@ -141,7 +141,7 @@ type Querier interface {
 	ListAllAPITokens(ctx context.Context) ([]ListAllAPITokensRow, error)
 	//ListCallbacks
 	//
-	//  SELECT id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks ORDER BY created_at DESC
+	//  SELECT id, name, url, events, headers, body_template, match_mode, match_rules, enabled, created_by, created_at, updated_at FROM callbacks ORDER BY created_at DESC
 	ListCallbacks(ctx context.Context) ([]Callback, error)
 	//ListChildRuns
 	//
@@ -156,7 +156,7 @@ type Querier interface {
 	ListChildRuns(ctx context.Context, parentRunID sql.NullInt64) ([]ListChildRunsRow, error)
 	//ListEnabledCallbacks
 	//
-	//  SELECT id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at FROM callbacks WHERE enabled = TRUE ORDER BY id
+	//  SELECT id, name, url, events, headers, body_template, match_mode, match_rules, enabled, created_by, created_at, updated_at FROM callbacks WHERE enabled = TRUE ORDER BY id
 	ListEnabledCallbacks(ctx context.Context) ([]Callback, error)
 	//ListEnabledTasks
 	//
@@ -166,6 +166,10 @@ type Querier interface {
 	//
 	//  SELECT id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at FROM schedules ORDER BY created_at DESC
 	ListSchedules(ctx context.Context) ([]Schedule, error)
+	//ListSchedulesByTaskID
+	//
+	//  SELECT id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at FROM schedules WHERE task_id = $1 ORDER BY created_at DESC
+	ListSchedulesByTaskID(ctx context.Context, taskID int64) ([]Schedule, error)
 	//ListTaskRunsByTaskID
 	//
 	//  SELECT id, task_id, trigger_type, trigger_id, triggered_by, parent_run_id, status, started_at, finished_at, duration_ms, error_msg, output, created_at FROM task_runs
@@ -210,9 +214,9 @@ type Querier interface {
 	//UpdateCallback
 	//
 	//  UPDATE callbacks
-	//  SET name = $2, url = $3, events = $4, headers = $5, body_template = $6, match_mode = $7, task_ids = $8, enabled = $9, updated_at = NOW()
+	//  SET name = $2, url = $3, events = $4, headers = $5, body_template = $6, match_mode = $7, match_rules = $8, enabled = $9, updated_at = NOW()
 	//  WHERE id = $1
-	//  RETURNING id, name, url, events, headers, body_template, match_mode, task_ids, enabled, created_by, created_at, updated_at
+	//  RETURNING id, name, url, events, headers, body_template, match_mode, match_rules, enabled, created_by, created_at, updated_at
 	UpdateCallback(ctx context.Context, arg UpdateCallbackParams) (Callback, error)
 	//UpdateSchedule
 	//

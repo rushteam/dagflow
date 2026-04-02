@@ -11,6 +11,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/google/cel-go/cel"
+
 	"github.com/rushteam/dagflow/internal/application/varfunc"
 	"github.com/rushteam/dagflow/internal/infrastructure/database/gen"
 )
@@ -54,10 +56,43 @@ type VarInfo struct {
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
+// MatchRules 存储 CEL 表达式，match_mode="selected" 时用 Expr 求值。
+type MatchRules struct {
+	Expr string `json:"expr,omitempty"`
+}
+
+// celEnv 全局 CEL 环境（线程安全），暴露任务相关变量供表达式引用。
+var celEnv *cel.Env
+
+func init() {
+	var err error
+	celEnv, err = cel.NewEnv(
+		cel.Variable("task_id", cel.IntType),
+		cel.Variable("task_name", cel.StringType),
+		cel.Variable("task_kind", cel.StringType),
+		cel.Variable("task_label", cel.StringType),
+	)
+	if err != nil {
+		panic(fmt.Sprintf("初始化 CEL 环境失败: %v", err))
+	}
+}
+
+// ValidateExpr 校验 CEL 表达式是否合法（供 API 层调用）。
+func ValidateExpr(expr string) error {
+	ast, issues := celEnv.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return fmt.Errorf("表达式语法错误: %w", issues.Err())
+	}
+	if ast.OutputType() != cel.BoolType {
+		return fmt.Errorf("表达式必须返回布尔值，当前返回 %v", ast.OutputType())
+	}
+	return nil
+}
+
 // FireMatched 从所有已启用的回调中筛选匹配当前任务和事件的，异步触发。
-func FireMatched(callbacks []gen.Callback, taskID int64, p Payload) {
+func FireMatched(callbacks []gen.Callback, p Payload) {
 	for _, cb := range callbacks {
-		if !matchTask(cb, taskID) {
+		if !matchTask(cb, p) {
 			continue
 		}
 		if !matchEvent(cb.Events, p.Status) {
@@ -130,20 +165,37 @@ func payloadToData(p Payload) map[string]string {
 	}
 }
 
-func matchTask(cb gen.Callback, taskID int64) bool {
+func matchTask(cb gen.Callback, p Payload) bool {
 	if cb.MatchMode == "all" {
 		return true
 	}
-	var ids []int64
-	if err := json.Unmarshal(cb.TaskIds, &ids); err != nil {
+	var mr MatchRules
+	if err := json.Unmarshal(cb.MatchRules, &mr); err != nil || mr.Expr == "" {
 		return false
 	}
-	for _, id := range ids {
-		if id == taskID {
-			return true
-		}
+
+	ast, issues := celEnv.Compile(mr.Expr)
+	if issues != nil && issues.Err() != nil {
+		slog.Warn("CEL 表达式编译失败", "expr", mr.Expr, "error", issues.Err())
+		return false
 	}
-	return false
+	prg, err := celEnv.Program(ast)
+	if err != nil {
+		slog.Warn("CEL 程序构建失败", "expr", mr.Expr, "error", err)
+		return false
+	}
+	out, _, err := prg.Eval(map[string]any{
+		"task_id":    p.TaskID,
+		"task_name":  p.TaskName,
+		"task_kind":  p.TaskKind,
+		"task_label": p.TaskLabel,
+	})
+	if err != nil {
+		slog.Warn("CEL 表达式求值失败", "expr", mr.Expr, "error", err)
+		return false
+	}
+	result, ok := out.Value().(bool)
+	return ok && result
 }
 
 func matchEvent(eventsRaw json.RawMessage, status string) bool {

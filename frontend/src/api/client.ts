@@ -162,6 +162,12 @@ class ApiClient {
     return this.request(`/api/v1/task-runs/${runId}/children`)
   }
 
+  // ---- task schedules ----
+
+  listTaskSchedules(taskId: number): Promise<Schedule[]> {
+    return this.request(`/api/v1/tasks/${taskId}/schedules`)
+  }
+
   // ---- schedules ----
 
   listSchedules(): Promise<Schedule[]> {
@@ -329,6 +335,10 @@ export interface PagedTaskRuns {
 
 // ---- Callbacks ----
 
+export interface MatchRules {
+  expr?: string
+}
+
 export interface Callback {
   id: number
   name: string
@@ -337,7 +347,7 @@ export interface Callback {
   headers: Record<string, string>
   body_template: string
   match_mode: 'all' | 'selected'
-  task_ids: number[]
+  match_rules: MatchRules
   enabled: boolean
   created_by?: number
   created_at: string
@@ -351,7 +361,7 @@ export interface CallbackInput {
   headers: Record<string, string>
   body_template: string
   match_mode: 'all' | 'selected'
-  task_ids: number[]
+  match_rules: MatchRules
   enabled: boolean
 }
 

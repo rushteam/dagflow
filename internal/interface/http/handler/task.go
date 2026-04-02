@@ -44,6 +44,7 @@ func (h *TaskHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/api/v1/tasks/{id}", h.getTask)
 		r.Put("/api/v1/tasks/{id}", h.updateTask)
 		r.Delete("/api/v1/tasks/{id}", h.deleteTask)
+		r.Get("/api/v1/tasks/{id}/schedules", h.listTaskSchedules)
 		r.Post("/api/v1/tasks/{id}/run", h.runTask)
 		r.Get("/api/v1/tasks/{id}/runs", h.listTaskRuns)
 		r.Get("/api/v1/task-runs", h.listAllTaskRuns)
@@ -298,12 +299,21 @@ func (h *TaskHandler) updateTask(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.Schedule != nil && strings.TrimSpace(req.Schedule.Name) != "" {
+		sr := taskScheduleToScheduleRequest(req.Schedule, id)
+		if _, err := scheduleCreateParamsFromRequest(sr, h.scheduler); err != nil {
+			infrahttp.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+
 	variables := req.Variables
 	if len(variables) == 0 {
 		variables = json.RawMessage(`[]`)
 	}
 
-	task, err := h.queries.UpdateTask(r.Context(), gen.UpdateTaskParams{
+	ctx := r.Context()
+	task, err := h.queries.UpdateTask(ctx, gen.UpdateTaskParams{
 		ID:        id,
 		Name:      req.Name,
 		Label:     req.Label,
@@ -318,12 +328,101 @@ func (h *TaskHandler) updateTask(w http.ResponseWriter, r *http.Request) {
 			infrahttp.Error(w, http.StatusNotFound, "任务不存在")
 			return
 		}
-		slog.ErrorContext(r.Context(), "更新任务失败", "error", err)
+		slog.ErrorContext(ctx, "更新任务失败", "error", err)
 		infrahttp.Error(w, http.StatusInternalServerError, "更新任务失败")
 		return
 	}
 
-	infrahttp.JSON(w, http.StatusOK, toTaskResponse(task))
+	resp := toTaskResponse(task)
+	if req.Schedule != nil {
+		schedName := strings.TrimSpace(req.Schedule.Name)
+		existingScheds, _ := h.queries.ListSchedulesByTaskID(ctx, id)
+
+		if schedName == "" {
+			for _, es := range existingScheds {
+				h.scheduler.RemoveSchedule(es.ID)
+				_ = h.queries.DeleteSchedule(ctx, es.ID)
+			}
+		} else if len(existingScheds) > 0 {
+			es := existingScheds[0]
+			overrides := req.Schedule.VariableOverrides
+			if len(overrides) == 0 {
+				overrides = json.RawMessage(`[]`)
+			}
+			uParams := gen.UpdateScheduleParams{
+				ID:                es.ID,
+				Name:              schedName,
+				TaskID:            id,
+				ScheduleType:      req.Schedule.ScheduleType,
+				VariableOverrides: overrides,
+				Enabled:           req.Schedule.Enabled,
+			}
+			if req.Schedule.ScheduleType == "cron" && req.Schedule.CronExpr != "" {
+				uParams.CronExpr = sql.NullString{String: req.Schedule.CronExpr, Valid: true}
+			}
+			if req.Schedule.ScheduleType == "once" && req.Schedule.RunAt != "" {
+				if t, err := time.Parse(time.RFC3339, req.Schedule.RunAt); err == nil {
+					uParams.RunAt = sql.NullTime{Time: t, Valid: true}
+					uParams.NextRunAt = sql.NullTime{Time: t, Valid: true}
+				}
+			}
+			sch, err := h.queries.UpdateSchedule(ctx, uParams)
+			if err != nil {
+				slog.ErrorContext(ctx, "更新调度失败", "error", err)
+			} else {
+				h.scheduler.RemoveSchedule(es.ID)
+				if sch.Enabled {
+					if err := h.scheduler.AddSchedule(ctx, sch); err != nil {
+						slog.ErrorContext(ctx, "重新加入调度引擎失败", "id", es.ID, "error", err)
+					}
+				}
+				sid := sch.ID
+				resp.ScheduleID = &sid
+			}
+		} else {
+			sr := taskScheduleToScheduleRequest(req.Schedule, id)
+			params, err := scheduleCreateParamsFromRequest(sr, h.scheduler)
+			if err == nil {
+				userID, _ := auth.UserIDFromContext(ctx)
+				if userID > 0 {
+					params.CreatedBy = sql.NullInt64{Int64: userID, Valid: true}
+				}
+				sch, err := h.queries.CreateSchedule(ctx, params)
+				if err != nil {
+					slog.ErrorContext(ctx, "创建调度失败", "error", err)
+				} else {
+					if sch.Enabled {
+						if err := h.scheduler.AddSchedule(ctx, sch); err != nil {
+							slog.ErrorContext(ctx, "加入调度引擎失败", "id", sch.ID, "error", err)
+						}
+					}
+					sid := sch.ID
+					resp.ScheduleID = &sid
+				}
+			}
+		}
+	}
+
+	infrahttp.JSON(w, http.StatusOK, resp)
+}
+
+func (h *TaskHandler) listTaskSchedules(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		infrahttp.Error(w, http.StatusBadRequest, "无效的 ID")
+		return
+	}
+	list, err := h.queries.ListSchedulesByTaskID(r.Context(), id)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "查询任务调度失败", "error", err)
+		infrahttp.Error(w, http.StatusInternalServerError, "内部错误")
+		return
+	}
+	result := make([]scheduleResponse, 0, len(list))
+	for _, s := range list {
+		result = append(result, toScheduleResponse(s))
+	}
+	infrahttp.JSON(w, http.StatusOK, result)
 }
 
 func (h *TaskHandler) deleteTask(w http.ResponseWriter, r *http.Request) {

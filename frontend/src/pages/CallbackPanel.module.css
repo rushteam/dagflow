@@ -488,3 +488,26 @@
   color: #8c8c8c;
   font-size: 11px;
 }
+
+/* CEL expression help */
+.celHelp { margin-top: 4px; }
+.celExamples {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #595959;
+}
+.celExamples summary {
+  cursor: pointer;
+  color: #1677ff;
+  font-size: 12px;
+  user-select: none;
+}
+.celExamples code {
+  display: inline-block;
+  background: #f5f5f5;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+  margin: 2px 4px 2px 0;
+  font-family: 'SF Mono', monospace;
+}

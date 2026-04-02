@@ -4,7 +4,7 @@ import { Drawer } from '@base-ui/react/drawer'
 import { Input } from '@base-ui/react/input'
 import { Select } from '@base-ui/react/select'
 import { Switch } from '@base-ui/react/switch'
-import { api, type Callback, type CallbackInput, type CallbackVarInfo, type Task } from '../api/client'
+import { api, type Callback, type CallbackInput, type CallbackVarInfo } from '../api/client'
 import styles from './CallbackPanel.module.css'
 
 const ALL_EVENTS = [
@@ -15,7 +15,6 @@ const ALL_EVENTS = [
 
 export default function CallbackPanel() {
   const [list, setList] = useState<Callback[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<Callback | null>(null)
@@ -24,9 +23,7 @@ export default function CallbackPanel() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [cbs, ts] = await Promise.all([api.listCallbacks(), api.listTasks()])
-      setList(cbs)
-      setTasks(ts)
+      setList(await api.listCallbacks())
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }, [])
@@ -39,7 +36,7 @@ export default function CallbackPanel() {
         name: cb.name, url: cb.url, events: cb.events,
         headers: cb.headers, body_template: cb.body_template,
         match_mode: cb.match_mode,
-        task_ids: cb.task_ids, enabled: !cb.enabled,
+        match_rules: cb.match_rules, enabled: !cb.enabled,
       })
       fetchData()
     } catch { /* ignore */ }
@@ -56,11 +53,6 @@ export default function CallbackPanel() {
 
   const openCreate = () => { setEditing(null); setShowForm(true) }
   const openEdit = (cb: Callback) => { setEditing(cb); setShowForm(true) }
-
-  const taskLabel = (id: number) => {
-    const t = tasks.find(t => t.id === id)
-    return t ? (t.label || t.name) : `#${id}`
-  }
 
   const eventBadge = (ev: string) => {
     const cls = ev === 'success' ? styles.evSuccess
@@ -108,8 +100,8 @@ export default function CallbackPanel() {
                   {cb.match_mode === 'all' ? (
                     <span className={styles.matchAll}>全部任务</span>
                   ) : (
-                    <span className={styles.matchSelected} title={cb.task_ids.map(id => taskLabel(id)).join(', ')}>
-                      {cb.task_ids.length} 个任务
+                    <span className={styles.matchSelected} title={cb.match_rules?.expr || ''}>
+                      {cb.match_rules?.expr ? 'CEL 表达式' : '未配置'}
                     </span>
                   )}
                 </td>
@@ -135,7 +127,6 @@ export default function CallbackPanel() {
       {showForm && (
         <CallbackFormDrawer
           callback={editing}
-          tasks={tasks}
           onClose={() => setShowForm(false)}
           onSaved={() => { setShowForm(false); fetchData() }}
         />
@@ -162,9 +153,8 @@ export default function CallbackPanel() {
 
 // ---- Form Drawer ----
 
-function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
+function CallbackFormDrawer({ callback, onClose, onSaved }: {
   callback: Callback | null
-  tasks: Task[]
   onClose: () => void
   onSaved: () => void
 }) {
@@ -178,12 +168,13 @@ function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
       headers: callback.headers,
       body_template: callback.body_template,
       match_mode: callback.match_mode,
-      task_ids: callback.task_ids,
+      match_rules: callback.match_rules ?? {},
       enabled: callback.enabled,
     }
     return {
       name: '', url: '', events: ['success', 'failed', 'cancelled'],
-      headers: {}, body_template: '', match_mode: 'all', task_ids: [], enabled: true,
+      headers: {}, body_template: '', match_mode: 'all',
+      match_rules: {}, enabled: true,
     }
   })
 
@@ -207,13 +198,6 @@ function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
     set({ events })
   }
 
-  const toggleTask = (taskId: number) => {
-    const ids = form.task_ids.includes(taskId)
-      ? form.task_ids.filter(id => id !== taskId)
-      : [...form.task_ids, taskId]
-    set({ task_ids: ids })
-  }
-
   const parseHeaders = (text: string): Record<string, string> => {
     const headers: Record<string, string> = {}
     for (const line of text.split('\n').filter(Boolean)) {
@@ -232,8 +216,8 @@ function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
     if (!form.name.trim()) { setError('名称不能为空'); return }
     if (!form.url.trim()) { setError('URL 不能为空'); return }
     if (form.events.length === 0) { setError('至少选择一个触发事件'); return }
-    if (form.match_mode === 'selected' && form.task_ids.length === 0) {
-      setError('请至少选择一个任务'); return
+    if (form.match_mode === 'selected' && !form.match_rules?.expr?.trim()) {
+      setError('请输入匹配表达式'); return
     }
 
     const data: CallbackInput = {
@@ -329,19 +313,24 @@ function CallbackFormDrawer({ callback, tasks, onClose, onSaved }: {
                 </div>
 
                 {form.match_mode === 'selected' && (
-                  <div className={styles.taskPickerSection}>
-                    <span className={styles.taskPickerHint}>选择要匹配的任务：</span>
-                    <div className={styles.taskPicker}>
-                      {tasks.map(t => (
-                        <label key={t.id} className={`${styles.taskPickerItem} ${form.task_ids.includes(t.id) ? styles.taskPickerItemActive : ''}`}>
-                          <input type="checkbox"
-                            checked={form.task_ids.includes(t.id)}
-                            onChange={() => toggleTask(t.id)} />
-                          <span>{t.label || t.name}</span>
-                          <span className={styles.taskPickerKind}>{t.kind}</span>
-                        </label>
-                      ))}
-                      {tasks.length === 0 && <span className={styles.taskPickerEmpty}>暂无可选任务</span>}
+                  <div className={styles.formLabel}>
+                    <span>匹配表达式（CEL）</span>
+                    <textarea className={styles.formTextarea}
+                      value={form.match_rules?.expr || ''}
+                      onChange={e => set({ match_rules: { expr: e.target.value } })}
+                      rows={3}
+                      placeholder={'task_name.startsWith("etl_") || task_kind == "shell"'} />
+                    <div className={styles.celHelp}>
+                      <span className={styles.hint}>可用变量：task_id (int)、task_name、task_kind、task_label (string)</span>
+                      <details className={styles.celExamples}>
+                        <summary>表达式示例</summary>
+                        <code>task_name.startsWith("etl_")</code> 名称前缀<br/>
+                        <code>task_kind in ["etl", "shell"]</code> 类型列表<br/>
+                        <code>task_name.matches("^daily_.*$")</code> 正则<br/>
+                        <code>task_label.contains("导出")</code> 标签包含<br/>
+                        <code>task_id in [1, 2, 3]</code> ID 列表<br/>
+                        <code>task_name.startsWith("etl_") && task_kind == "etl"</code> 组合
+                      </details>
                     </div>
                   </div>
                 )}

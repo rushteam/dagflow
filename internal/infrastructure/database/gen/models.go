@@ -30,7 +30,7 @@ type Callback struct {
 	Headers      json.RawMessage `json:"headers"`
 	BodyTemplate string          `json:"body_template"`
 	MatchMode    string          `json:"match_mode"`
-	TaskIds      json.RawMessage `json:"task_ids"`
+	MatchRules   json.RawMessage `json:"match_rules"`
 	Enabled      bool            `json:"enabled"`
 	CreatedBy    sql.NullInt64   `json:"created_by"`
 	CreatedAt    time.Time       `json:"created_at"`

@@ -37,29 +37,29 @@ func (h *CallbackHandler) RegisterRoutes(r chi.Router) {
 }
 
 type callbackRequest struct {
-	Name         string            `json:"name"`
-	URL          string            `json:"url"`
-	Events       []string          `json:"events"`
-	Headers      map[string]string `json:"headers"`
-	BodyTemplate string            `json:"body_template"`
-	MatchMode    string            `json:"match_mode"`
-	TaskIDs      []int64           `json:"task_ids"`
-	Enabled      bool              `json:"enabled"`
+	Name         string              `json:"name"`
+	URL          string              `json:"url"`
+	Events       []string            `json:"events"`
+	Headers      map[string]string   `json:"headers"`
+	BodyTemplate string              `json:"body_template"`
+	MatchMode    string              `json:"match_mode"`
+	MatchRules   callback.MatchRules `json:"match_rules"`
+	Enabled      bool                `json:"enabled"`
 }
 
 type callbackResponse struct {
-	ID           int64             `json:"id"`
-	Name         string            `json:"name"`
-	URL          string            `json:"url"`
-	Events       []string          `json:"events"`
-	Headers      map[string]string `json:"headers"`
-	BodyTemplate string            `json:"body_template"`
-	MatchMode    string            `json:"match_mode"`
-	TaskIDs      []int64           `json:"task_ids"`
-	Enabled      bool              `json:"enabled"`
-	CreatedBy    *int64            `json:"created_by,omitempty"`
-	CreatedAt    time.Time         `json:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at"`
+	ID           int64               `json:"id"`
+	Name         string              `json:"name"`
+	URL          string              `json:"url"`
+	Events       []string            `json:"events"`
+	Headers      map[string]string   `json:"headers"`
+	BodyTemplate string              `json:"body_template"`
+	MatchMode    string              `json:"match_mode"`
+	MatchRules   callback.MatchRules `json:"match_rules"`
+	Enabled      bool                `json:"enabled"`
+	CreatedBy    *int64              `json:"created_by,omitempty"`
+	CreatedAt    time.Time           `json:"created_at"`
+	UpdatedAt    time.Time           `json:"updated_at"`
 }
 
 func toCallbackResponse(c gen.Callback) callbackResponse {
@@ -93,12 +93,9 @@ func toCallbackResponse(c gen.Callback) callbackResponse {
 		resp.Headers = map[string]string{}
 	}
 
-	var taskIDs []int64
-	if json.Unmarshal(c.TaskIds, &taskIDs) == nil {
-		resp.TaskIDs = taskIDs
-	}
-	if resp.TaskIDs == nil {
-		resp.TaskIDs = []int64{}
+	var mr callback.MatchRules
+	if json.Unmarshal(c.MatchRules, &mr) == nil {
+		resp.MatchRules = mr
 	}
 
 	return resp
@@ -153,10 +150,16 @@ func (h *CallbackHandler) create(w http.ResponseWriter, r *http.Request) {
 		infrahttp.Error(w, http.StatusBadRequest, "match_mode 只能是 all 或 selected")
 		return
 	}
+	if req.MatchMode == "selected" && req.MatchRules.Expr != "" {
+		if err := callback.ValidateExpr(req.MatchRules.Expr); err != nil {
+			infrahttp.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 
 	eventsJSON, _ := json.Marshal(defaultEvents(req.Events))
 	headersJSON, _ := json.Marshal(defaultHeaders(req.Headers))
-	taskIDsJSON, _ := json.Marshal(defaultTaskIDs(req.TaskIDs))
+	matchRulesJSON, _ := json.Marshal(req.MatchRules)
 
 	userID, _ := auth.UserIDFromContext(r.Context())
 	var createdBy sql.NullInt64
@@ -171,7 +174,7 @@ func (h *CallbackHandler) create(w http.ResponseWriter, r *http.Request) {
 		Headers:      headersJSON,
 		BodyTemplate: req.BodyTemplate,
 		MatchMode:    req.MatchMode,
-		TaskIds:      taskIDsJSON,
+		MatchRules:   matchRulesJSON,
 		Enabled:      req.Enabled,
 		CreatedBy:    createdBy,
 	})
@@ -201,10 +204,16 @@ func (h *CallbackHandler) update(w http.ResponseWriter, r *http.Request) {
 	if req.MatchMode == "" {
 		req.MatchMode = "all"
 	}
+	if req.MatchMode == "selected" && req.MatchRules.Expr != "" {
+		if err := callback.ValidateExpr(req.MatchRules.Expr); err != nil {
+			infrahttp.Error(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 
 	eventsJSON, _ := json.Marshal(defaultEvents(req.Events))
 	headersJSON, _ := json.Marshal(defaultHeaders(req.Headers))
-	taskIDsJSON, _ := json.Marshal(defaultTaskIDs(req.TaskIDs))
+	matchRulesJSON, _ := json.Marshal(req.MatchRules)
 
 	cb, err := h.queries.UpdateCallback(r.Context(), gen.UpdateCallbackParams{
 		ID:           id,
@@ -214,7 +223,7 @@ func (h *CallbackHandler) update(w http.ResponseWriter, r *http.Request) {
 		Headers:      headersJSON,
 		BodyTemplate: req.BodyTemplate,
 		MatchMode:    req.MatchMode,
-		TaskIds:      taskIDsJSON,
+		MatchRules:   matchRulesJSON,
 		Enabled:      req.Enabled,
 	})
 	if err != nil {
@@ -259,11 +268,4 @@ func defaultHeaders(headers map[string]string) map[string]string {
 		return map[string]string{}
 	}
 	return headers
-}
-
-func defaultTaskIDs(ids []int64) []int64 {
-	if ids == nil {
-		return []int64{}
-	}
-	return ids
 }

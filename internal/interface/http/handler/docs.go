@@ -410,13 +410,46 @@ td{padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#333}
   <tr><td>name</td><td>string</td><td>是</td><td>回调名称</td></tr>
   <tr><td>url</td><td>string</td><td>是</td><td>Webhook URL</td></tr>
   <tr><td>events</td><td>array</td><td>是</td><td>触发事件：["success", "failed", "cancelled"]</td></tr>
-  <tr><td>match_mode</td><td>string</td><td>否</td><td>"all"（默认，匹配所有任务）或 "selected"</td></tr>
-  <tr><td>task_ids</td><td>array</td><td>否</td><td>match_mode=selected 时，指定任务 ID 列表</td></tr>
+  <tr><td>match_mode</td><td>string</td><td>否</td><td>"all"（默认，匹配所有任务）或 "selected"（按规则匹配）</td></tr>
+  <tr><td>match_rules</td><td>object</td><td>否</td><td>match_mode=selected 时的匹配规则，见下方 CEL 表达式</td></tr>
   <tr><td>headers</td><td>object</td><td>否</td><td>自定义请求头</td></tr>
   <tr><td>body_template</td><td>string</td><td>否</td><td>自定义 body（Go template），不填则发送默认 JSON</td></tr>
   <tr><td>enabled</td><td>boolean</td><td>否</td><td>是否启用</td></tr>
 </table>
-<h3>示例</h3>
+
+<h3>match_rules —— CEL 表达式规则引擎</h3>
+<p>当 <code class="inline-code">match_mode = "selected"</code> 时，通过 <code class="inline-code">match_rules.expr</code> 字段传入 <a href="https://github.com/google/cel-go" style="color:#1677ff">CEL</a> 表达式来筛选哪些任务触发此回调。表达式必须返回布尔值。</p>
+<table>
+  <tr><th>可用变量</th><th>类型</th><th>说明</th></tr>
+  <tr><td>task_id</td><td>int</td><td>任务 ID</td></tr>
+  <tr><td>task_name</td><td>string</td><td>任务唯一标识</td></tr>
+  <tr><td>task_kind</td><td>string</td><td>任务类型（shell / http / dag / etl）</td></tr>
+  <tr><td>task_label</td><td>string</td><td>任务显示名称</td></tr>
+</table>
+<h3>CEL 表达式示例</h3>
+<pre>// 名称前缀匹配
+task_name.startsWith("etl_")
+
+// 类型列表
+task_kind in ["etl", "shell"]
+
+// 正则匹配
+task_name.matches("^daily_.*$")
+
+// 标签包含
+task_label.contains("导出")
+
+// ID 列表
+task_id in [1, 2, 3]
+
+// AND 组合
+task_name.startsWith("etl_") && task_kind == "etl"
+
+// OR 组合
+task_name.startsWith("etl_") || task_kind == "shell"</pre>
+<div class="note">创建/更新时后端会编译校验 CEL 表达式，语法错误会直接返回 400。</div>
+
+<h3>示例：匹配所有任务</h3>
 <pre>{
   "name": "飞书通知",
   "url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
@@ -424,6 +457,16 @@ td{padding:8px 12px;border-bottom:1px solid #f0f0f0;color:#333}
   "match_mode": "all",
   "headers": {"Content-Type": "application/json"},
   "body_template": "{\"msg_type\":\"text\",\"content\":{\"text\":\"任务 {{.task_name}} 失败: {{.error}}\"}}",
+  "enabled": true
+}</pre>
+
+<h3>示例：按规则匹配（CEL 表达式）</h3>
+<pre>{
+  "name": "ETL失败告警",
+  "url": "https://open.feishu.cn/open-apis/bot/v2/hook/xxx",
+  "events": ["failed"],
+  "match_mode": "selected",
+  "match_rules": {"expr": "task_kind == \"etl\" || task_name.startsWith(\"daily_\")"},
   "enabled": true
 }</pre>
 

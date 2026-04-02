@@ -197,6 +197,51 @@ func (q *Queries) ListSchedules(ctx context.Context) ([]Schedule, error) {
 	return items, nil
 }
 
+const listSchedulesByTaskID = `-- name: ListSchedulesByTaskID :many
+SELECT id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at FROM schedules WHERE task_id = $1 ORDER BY created_at DESC
+`
+
+// ListSchedulesByTaskID
+//
+//	SELECT id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at FROM schedules WHERE task_id = $1 ORDER BY created_at DESC
+func (q *Queries) ListSchedulesByTaskID(ctx context.Context, taskID int64) ([]Schedule, error) {
+	rows, err := q.db.QueryContext(ctx, listSchedulesByTaskID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Schedule{}
+	for rows.Next() {
+		var i Schedule
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TaskID,
+			&i.ScheduleType,
+			&i.CronExpr,
+			&i.RunAt,
+			&i.VariableOverrides,
+			&i.Enabled,
+			&i.Status,
+			&i.LastRunAt,
+			&i.NextRunAt,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setScheduleEnabled = `-- name: SetScheduleEnabled :exec
 UPDATE schedules SET enabled = $2, updated_at = NOW() WHERE id = $1
 `

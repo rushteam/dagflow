@@ -76,7 +76,13 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		}
 	}
 
-	s.cron.Start()
+	s.mu.Lock()
+	c := s.cron
+	s.mu.Unlock()
+	if c == nil {
+		return nil
+	}
+	c.Start()
 	slog.InfoContext(ctx, "调度引擎已启动", "loaded", len(schedules))
 	return nil
 }
@@ -85,6 +91,8 @@ func (s *Scheduler) Start(ctx context.Context) error {
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
 	c := s.cron
+	s.cron = nil
+	s.entries = make(map[int64]cron.EntryID)
 	s.mu.Unlock()
 	if c != nil {
 		stopCtx := c.Stop()
@@ -180,9 +188,16 @@ func (s *Scheduler) addToCron(ctx context.Context, sch gen.Schedule) error {
 		return nil
 	}
 
-	entryID := s.cron.Schedule(schedule, &scheduleJob{scheduler: s, scheduleID: sch.ID})
-
 	s.mu.Lock()
+	if s.cron == nil {
+		s.mu.Unlock()
+		slog.InfoContext(ctx, "调度引擎未启动，跳过加入 cron（将在 Start 时从 DB 加载）", "id", sch.ID, "name", sch.Name)
+		return nil
+	}
+	if oldEID, exists := s.entries[sch.ID]; exists {
+		s.cron.Remove(oldEID)
+	}
+	entryID := s.cron.Schedule(schedule, &scheduleJob{scheduler: s, scheduleID: sch.ID})
 	s.entries[sch.ID] = entryID
 	s.mu.Unlock()
 
@@ -351,7 +366,7 @@ func (s *Scheduler) dispatch(ctx context.Context, taskID int64, triggerType stri
 
 	// ⑧ 触发全局回调（异步，失败忽略）
 	if cbs, err := s.queries.ListEnabledCallbacks(context.Background()); err == nil && len(cbs) > 0 {
-		callback.FireMatched(cbs, taskID, callback.Payload{
+		callback.FireMatched(cbs, callback.Payload{
 			RunID:      run.ID,
 			TaskID:     taskID,
 			TaskName:   task.Name,

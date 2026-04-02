@@ -4,7 +4,7 @@ import { Drawer } from '@base-ui/react/drawer'
 import { Input } from '@base-ui/react/input'
 import { Select } from '@base-ui/react/select'
 import { Switch } from '@base-ui/react/switch'
-import { api, type Task, type TaskInput, type TaskVariable, type KindInfo, type TaskRun, type ChildRun } from '../api/client'
+import { api, type Task, type TaskInput, type TaskVariable, type KindInfo, type TaskRun, type ChildRun, type Schedule } from '../api/client'
 import styles from './TaskPanel.module.css'
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'))
@@ -268,6 +268,28 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
   const [schCron, setSchCron] = useState('')
   const [schRunAt, setSchRunAt] = useState('')
   const [schEnabled, setSchEnabled] = useState(true)
+  const [existingSchedule, setExistingSchedule] = useState<Schedule | null>(null)
+  const [schLoading, setSchLoading] = useState(false)
+
+  useEffect(() => {
+    if (!task) return
+    setSchLoading(true)
+    api.listTaskSchedules(task.id).then(list => {
+      if (list.length > 0) {
+        const s = list[0]
+        setExistingSchedule(s)
+        setSchName(s.name)
+        setSchType(s.schedule_type)
+        setSchCron(s.cron_expr ?? '')
+        if (s.run_at) {
+          const d = new Date(s.run_at)
+          const pad = (n: number) => String(n).padStart(2, '0')
+          setSchRunAt(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`)
+        }
+        setSchEnabled(s.enabled)
+      }
+    }).catch(() => {}).finally(() => setSchLoading(false))
+  }, [task])
 
   const set = (patch: Partial<TaskInput>) => setForm(prev => ({ ...prev, ...patch }))
 
@@ -351,36 +373,37 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
     if (!payload) return
 
     const base: TaskInput = { ...form, payload }
-    let createBody: TaskInput = base
-    if (!isEdit) {
-      const trimmedSch = schName.trim()
-      if (trimmedSch) {
-        if (schType === 'cron') {
-          if (!schCron.trim()) { setError('请填写 cron 表达式'); return }
-        } else {
-          if (!schRunAt.trim()) { setError('请选择一次性运行时间'); return }
-        }
-        const runAt = schType === 'once' ? new Date(schRunAt).toISOString() : undefined
-        createBody = {
-          ...base,
-          schedule: {
-            name: trimmedSch,
-            schedule_type: schType,
-            cron_expr: schType === 'cron' ? schCron.trim() : undefined,
-            run_at: runAt,
-            variable_overrides: [],
-            enabled: schEnabled,
-          },
-        }
+
+    const trimmedSch = schName.trim()
+    if (trimmedSch) {
+      if (schType === 'cron') {
+        if (!schCron.trim()) { setError('请填写 cron 表达式'); return }
+      } else {
+        if (!schRunAt.trim()) { setError('请选择一次性运行时间'); return }
       }
     }
+
+    const schedulePayload = (() => {
+      if (!trimmedSch && !existingSchedule) return undefined
+      const runAt = schType === 'once' && schRunAt ? new Date(schRunAt).toISOString() : undefined
+      return {
+        name: trimmedSch,
+        schedule_type: schType,
+        cron_expr: schType === 'cron' ? schCron.trim() : undefined,
+        run_at: runAt,
+        variable_overrides: [] as { key: string; value: string }[],
+        enabled: schEnabled,
+      }
+    })()
+
+    const body: TaskInput = schedulePayload ? { ...base, schedule: schedulePayload } : base
 
     setSubmitting(true)
     try {
       if (isEdit && task) {
-        await api.updateTask(task.id, base)
+        await api.updateTask(task.id, body)
       } else {
-        await api.createTask(createBody)
+        await api.createTask(body)
       }
       onSaved()
     } catch (err) {
@@ -504,10 +527,16 @@ function TaskFormDialog({ kinds, task, onClose, onSaved }: {
                   onChange={(variables) => set({ variables })}
                 />
 
-                {!isEdit && (
+                {!schLoading && (
                   <div className={styles.formLabel}>
-                    <span className={styles.formSwitchLabel}>可选：同时创建调度</span>
-                    <span className={styles.hint}>填写调度名称则创建；名称留空则不创建。</span>
+                    <span className={styles.formSwitchLabel}>
+                      {existingSchedule ? '关联调度' : '可选：同时创建调度'}
+                    </span>
+                    <span className={styles.hint}>
+                      {existingSchedule
+                        ? '编辑或清空名称以删除调度。'
+                        : '填写调度名称则创建；名称留空则不创建。'}
+                    </span>
                     <Input
                       className={styles.formInput}
                       value={schName}
