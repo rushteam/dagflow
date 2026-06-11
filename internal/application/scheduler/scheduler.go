@@ -68,7 +68,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	for _, sch := range schedules {
 		if sch.ScheduleType == "once" && sch.RunAt.Valid && !sch.RunAt.Time.After(time.Now()) {
 			slog.InfoContext(ctx, "补执行过期的一次性调度", "id", sch.ID, "name", sch.Name)
-			go s.executeSchedule(context.Background(), sch.ID)
+			go s.executeSchedule(context.Background(), sch.ID, "schedule", sql.NullInt64{})
 		} else {
 			if err := s.addToCron(ctx, sch); err != nil {
 				slog.ErrorContext(ctx, "加载调度失败", "id", sch.ID, "name", sch.Name, "error", err)
@@ -83,8 +83,81 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		return nil
 	}
 	c.Start()
+	go s.syncLoop(ctx)
 	slog.InfoContext(ctx, "调度引擎已启动", "loaded", len(schedules))
 	return nil
+}
+
+// syncLoop 定期从 DB 同步调度状态，解决多副本部署时非 Leader Pod 创建的调度无法被 Leader 感知的问题。
+func (s *Scheduler) syncLoop(ctx context.Context) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.syncFromDB(ctx)
+		}
+	}
+}
+
+func (s *Scheduler) syncFromDB(ctx context.Context) {
+	// 回收僵死调度：status='running' 超过 10 分钟视为实例崩溃遗留，重置为 idle 让下次可被调度
+	staleThreshold := sql.NullTime{Time: time.Now().Add(-10 * time.Minute), Valid: true}
+	if n, err := s.queries.ResetStaleRunningSchedules(ctx, staleThreshold); err != nil {
+		slog.ErrorContext(ctx, "重置僵死调度失败", "error", err)
+	} else if n > 0 {
+		slog.WarnContext(ctx, "已重置僵死调度", "count", n)
+	}
+
+	dbSchedules, err := s.queries.GetEnabledSchedules(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "定期同步调度失败", "error", err)
+		return
+	}
+
+	// 收集当前 cron 引擎已注册的 ID
+	s.mu.Lock()
+	known := make(map[int64]bool, len(s.entries))
+	for id := range s.entries {
+		known[id] = true
+	}
+	s.mu.Unlock()
+
+	// 加载 DB 中有但 cron 引擎没有的调度
+	for _, sch := range dbSchedules {
+		if known[sch.ID] {
+			continue
+		}
+		if sch.ScheduleType == "once" && sch.RunAt.Valid && !sch.RunAt.Time.After(time.Now()) {
+			slog.InfoContext(ctx, "同步发现过期 once，补执行", "id", sch.ID, "name", sch.Name)
+			go s.executeSchedule(context.Background(), sch.ID, "schedule", sql.NullInt64{})
+		} else {
+			if err := s.addToCron(ctx, sch); err != nil {
+				slog.ErrorContext(ctx, "同步加载调度失败", "id", sch.ID, "name", sch.Name, "error", err)
+			} else {
+				slog.InfoContext(ctx, "同步发现新调度，已加载", "id", sch.ID, "name", sch.Name)
+			}
+		}
+	}
+
+	// 移除 DB 中已禁用/删除但 cron 引擎仍注册的调度
+	enabledIDs := make(map[int64]bool, len(dbSchedules))
+	for _, sch := range dbSchedules {
+		enabledIDs[sch.ID] = true
+	}
+	s.mu.Lock()
+	for id, eid := range s.entries {
+		if !enabledIDs[id] {
+			if s.cron != nil {
+				s.cron.Remove(eid)
+			}
+			delete(s.entries, id)
+			slog.InfoContext(ctx, "同步移除已禁用的调度", "id", id)
+		}
+	}
+	s.mu.Unlock()
 }
 
 // Stop 停止 cron 引擎并等待运行中的 job 完成。
@@ -118,9 +191,9 @@ func (s *Scheduler) RemoveSchedule(scheduleID int64) {
 	}
 }
 
-// TriggerSchedule 手动立即触发一次调度。
-func (s *Scheduler) TriggerSchedule(_ context.Context, scheduleID int64) {
-	go s.executeSchedule(context.Background(), scheduleID)
+// TriggerSchedule 手动立即触发一次调度（trigger_type 记为 manual）。
+func (s *Scheduler) TriggerSchedule(_ context.Context, scheduleID int64, userID int64) {
+	go s.executeSchedule(context.Background(), scheduleID, "manual", sql.NullInt64{Int64: userID, Valid: userID > 0})
 }
 
 // RunTask 手动执行一个任务（非调度触发），写入 task_runs。
@@ -152,6 +225,15 @@ func (s *Scheduler) ValidateCronExpr(expr string) error {
 	return err
 }
 
+// NextCronTime 根据 cron 表达式计算下次触发时间（用于写入 next_run_at）。
+func (s *Scheduler) NextCronTime(expr string) (time.Time, error) {
+	parsed, err := s.parser.Parse(expr)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return parsed.Next(time.Now()), nil
+}
+
 // ---- internal: cron 管理 ----
 
 type onceSchedule struct{ At time.Time }
@@ -180,6 +262,11 @@ func (s *Scheduler) addToCron(ctx context.Context, sch gen.Schedule) error {
 	case "once":
 		if !sch.RunAt.Valid {
 			slog.WarnContext(ctx, "一次性调度缺少 run_at，跳过", "id", sch.ID)
+			return nil
+		}
+		if !sch.RunAt.Time.After(time.Now()) {
+			slog.InfoContext(ctx, "一次性调度已过期，立即补执行", "id", sch.ID, "name", sch.Name)
+			go s.executeSchedule(context.Background(), sch.ID, "schedule", sql.NullInt64{})
 			return nil
 		}
 		schedule = onceSchedule{At: sch.RunAt.Time}
@@ -220,29 +307,27 @@ type scheduleJob struct {
 }
 
 func (j *scheduleJob) Run() {
-	j.scheduler.executeSchedule(context.Background(), j.scheduleID)
+	j.scheduler.executeSchedule(context.Background(), j.scheduleID, "schedule", sql.NullInt64{})
 }
 
 // ---- internal: 调度执行 ----
 
-func (s *Scheduler) executeSchedule(ctx context.Context, scheduleID int64) {
-	sch, err := s.queries.GetScheduleByID(ctx, scheduleID)
+func (s *Scheduler) executeSchedule(ctx context.Context, scheduleID int64, triggerType string, triggeredBy sql.NullInt64) {
+	// 原子抢占：只有 status != 'running' 时才能拿到执行权，防止 Leader 切换时重复执行
+	sch, err := s.queries.ClaimScheduleExecution(ctx, scheduleID)
 	if err != nil {
-		slog.ErrorContext(ctx, "执行调度失败：查询记录出错", "id", scheduleID, "error", err)
+		if err == sql.ErrNoRows {
+			slog.WarnContext(ctx, "调度正在执行中（可能另一实例持有），跳过", "id", scheduleID)
+			return
+		}
+		slog.ErrorContext(ctx, "执行调度失败：抢占执行权出错", "id", scheduleID, "error", err)
 		return
 	}
 
-	_ = s.queries.UpdateScheduleExecution(ctx, gen.UpdateScheduleExecutionParams{
-		ID:        scheduleID,
-		Status:    "running",
-		LastRunAt: sql.NullTime{Time: time.Now(), Valid: true},
-		NextRunAt: sch.NextRunAt,
-	})
-
 	vars := varfunc.ResolveOverrides(sch.VariableOverrides, time.Now())
 
-	taskErr := s.dispatch(ctx, sch.TaskID, "schedule",
-		sql.NullInt64{Int64: scheduleID, Valid: true}, sql.NullInt64{}, sql.NullInt64{}, vars)
+	taskErr := s.dispatch(ctx, sch.TaskID, triggerType,
+		sql.NullInt64{Int64: scheduleID, Valid: true}, triggeredBy, sql.NullInt64{}, vars)
 
 	finalStatus := "idle"
 	var nextRun sql.NullTime

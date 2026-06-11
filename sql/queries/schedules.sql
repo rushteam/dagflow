@@ -25,6 +25,16 @@ RETURNING *;
 -- name: DeleteSchedule :exec
 DELETE FROM schedules WHERE id = $1;
 
+-- name: ClaimScheduleExecution :one
+UPDATE schedules
+SET status = 'running', last_run_at = NOW(), updated_at = NOW()
+WHERE id = $1 AND status != 'running'
+RETURNING *;
+
+-- name: ResetStaleRunningSchedules :execrows
+UPDATE schedules SET status = 'idle', updated_at = NOW()
+WHERE status = 'running' AND last_run_at < $1;
+
 -- name: UpdateScheduleExecution :exec
 UPDATE schedules
 SET status = $2, last_run_at = $3, next_run_at = $4, updated_at = NOW()

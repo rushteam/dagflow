@@ -335,7 +335,8 @@ func (h *ScheduleHandler) triggerSchedule(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	h.scheduler.TriggerSchedule(r.Context(), id)
+	userID, _ := auth.UserIDFromContext(r.Context())
+	h.scheduler.TriggerSchedule(r.Context(), id, userID)
 	infrahttp.JSON(w, http.StatusOK, map[string]string{"message": "已触发执行"})
 }
 

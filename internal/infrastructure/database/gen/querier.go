@@ -10,6 +10,13 @@ import (
 )
 
 type Querier interface {
+	//ClaimScheduleExecution
+	//
+	//  UPDATE schedules
+	//  SET status = 'running', last_run_at = NOW(), updated_at = NOW()
+	//  WHERE id = $1 AND status != 'running'
+	//  RETURNING id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at
+	ClaimScheduleExecution(ctx context.Context, id int64) (Schedule, error)
 	//CountTaskRuns
 	//
 	//  SELECT COUNT(*) FROM task_runs tr
@@ -199,6 +206,11 @@ type Querier interface {
 	//
 	//  SELECT id, username, password_hash, nickname, role, created_at, updated_at, last_login_at FROM users ORDER BY created_at DESC
 	ListUsers(ctx context.Context) ([]User, error)
+	//ResetStaleRunningSchedules
+	//
+	//  UPDATE schedules SET status = 'idle', updated_at = NOW()
+	//  WHERE status = 'running' AND last_run_at < $1
+	ResetStaleRunningSchedules(ctx context.Context, lastRunAt sql.NullTime) (int64, error)
 	//RevokeAPIToken
 	//
 	//  UPDATE api_tokens SET enabled = FALSE WHERE id = $1

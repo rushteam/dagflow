@@ -11,6 +11,41 @@ import (
 	"encoding/json"
 )
 
+const claimScheduleExecution = `-- name: ClaimScheduleExecution :one
+UPDATE schedules
+SET status = 'running', last_run_at = NOW(), updated_at = NOW()
+WHERE id = $1 AND status != 'running'
+RETURNING id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at
+`
+
+// ClaimScheduleExecution
+//
+//	UPDATE schedules
+//	SET status = 'running', last_run_at = NOW(), updated_at = NOW()
+//	WHERE id = $1 AND status != 'running'
+//	RETURNING id, name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, status, last_run_at, next_run_at, created_by, created_at, updated_at
+func (q *Queries) ClaimScheduleExecution(ctx context.Context, id int64) (Schedule, error) {
+	row := q.db.QueryRowContext(ctx, claimScheduleExecution, id)
+	var i Schedule
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.TaskID,
+		&i.ScheduleType,
+		&i.CronExpr,
+		&i.RunAt,
+		&i.VariableOverrides,
+		&i.Enabled,
+		&i.Status,
+		&i.LastRunAt,
+		&i.NextRunAt,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createSchedule = `-- name: CreateSchedule :one
 INSERT INTO schedules (name, task_id, schedule_type, cron_expr, run_at, variable_overrides, enabled, next_run_at, created_by)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -240,6 +275,23 @@ func (q *Queries) ListSchedulesByTaskID(ctx context.Context, taskID int64) ([]Sc
 		return nil, err
 	}
 	return items, nil
+}
+
+const resetStaleRunningSchedules = `-- name: ResetStaleRunningSchedules :execrows
+UPDATE schedules SET status = 'idle', updated_at = NOW()
+WHERE status = 'running' AND last_run_at < $1
+`
+
+// ResetStaleRunningSchedules
+//
+//	UPDATE schedules SET status = 'idle', updated_at = NOW()
+//	WHERE status = 'running' AND last_run_at < $1
+func (q *Queries) ResetStaleRunningSchedules(ctx context.Context, lastRunAt sql.NullTime) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetStaleRunningSchedules, lastRunAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setScheduleEnabled = `-- name: SetScheduleEnabled :exec
